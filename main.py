@@ -2,10 +2,13 @@
 
 #Importar funçôes para dash (cpu, memoria, disco)
 import time
-from cpuModel import lerUsoCpu
+from cpuModel import lerUsoCpu, lerOciosidadeCpu 
+
 from processModel import processos_todos
 
 uso = lerUsoCpu()
-print(f"Uso da CPU: {uso}%")
+ociosidade = lerOciosidadeCpu()
+print(f"Utilização CPU: {uso}%")
+print(f"Tempo Ocioso CPU {ociosidade}%")
 processos_todos()
 
