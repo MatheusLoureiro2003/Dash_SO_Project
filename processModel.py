@@ -15,7 +15,7 @@ def statusProcesso(processosID):
     status_path = f'/proc/{processosID}/status'
     status_info = {}
 
-    print(f"\n📄 Lendo arquivo: {status_path}")
+    print(f"\n Lendo arquivo: {status_path}")
     try:
         with open(status_path, 'r') as f:
             for linha in f:
@@ -42,7 +42,7 @@ def statusProcesso(processosID):
         print(f"Processo {processosID} não existe ou terminou.")
         return None
     except PermissionError:
-        print(f"⛔ Sem permissão para acessar {status_path} (PermissionError)")
+        print(f"Sem permissão para acessar {status_path} (PermissionError)")
         return None
 
     return status_info
@@ -59,7 +59,7 @@ def dicionarioStatusProcesso():
 def cpuProcesso(processosID):
     """Lê e retorna os dados do arquivo /proc/[pid]/stat como dicionário"""
     stat_path = f'/proc/{processosID}/stat'
-    print(f"\n📄 Lendo arquivo: {stat_path}")
+    print(f"\n Lendo arquivo: {stat_path}")
 
     
     status_info = {}
@@ -82,10 +82,10 @@ def cpuProcesso(processosID):
             "tempo_total_segundos": round(tempo_segundos, 2)
         }
     except FileNotFoundError:
-        print(f"❌ Processo {processosID} não encontrado.")
+        print(f"Processo {processosID} não encontrado.")
         return None
     except PermissionError:
-        print(f"⛔ Sem permissão para acessar {stat_path}.")
+        print(f"Sem permissão para acessar {stat_path}.")
         return None    
 
 def dicionarioStatCPUProcesso():
