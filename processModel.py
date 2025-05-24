@@ -97,3 +97,7 @@ def dicionarioStatCPUProcesso():
             processosCPU_info[processosID] = infoCPU
     return processosCPU_info
 
+
+
+    #comentario na brach Matheus
+
