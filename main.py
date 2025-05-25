@@ -1,7 +1,8 @@
 #Projeto Dashboard Sistemas Operacionais
 
-#Importar funçôes para dash (cpu, memoria, disco)
 import time
+from dashController import iniciar_dashboard
+
 #from dashController import update_dashboard
 # from cpuModel import lerUsoCpu, lerOciosidadeCpu 
 
@@ -39,3 +40,7 @@ if __name__ == "__main__":
     main()"""
 
 
+
+
+if __name__ == "__main__":
+    iniciar_dashboard()

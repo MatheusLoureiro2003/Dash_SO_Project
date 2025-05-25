@@ -1,10 +1,10 @@
 import threading
+from view import iniciar_dashboard, atualizar_interface
 import time
 
 from cpuModel import lerUsoCpu
 from memoryModel import lerUsoMemoria
-from processModel import dicionarioStatusProcesso, dicionarioStatCPUProcesso
-from terminalView 
+from processModel import dicionarioStatusProcesso, dicionarioStatCPUProcesso 
 
 # Locks para controle de concorrência (caso precise usar dados globais)
 lock_cpu = threading.Lock()
@@ -53,7 +53,8 @@ def atualizar_processos():
 # Função que chama a view com dados atualizados
 
 def loop_exibicao():
-    while True:
+    
+    def atualizar():
         with lock_cpu:
             cpu = dados_cpu.copy()
         with lock_mem:
@@ -61,10 +62,18 @@ def loop_exibicao():
         with lock_proc:
             procs = dados_proc.copy()
 
-        exibir_dashboard(cpu, mem, procs)
-        time.sleep(1)
+        atualizar_interface(cpu, mem, procs)
+        root.after(1000, atualizar)  # chama de novo em 1 segundo
 
-# Função principal
+    global root
+    from tkinter import Tk
+    root = Tk()
+    root.title("Dashboard do Sistema")
+    iniciar_dashboard(dados_cpu, dados_mem, dados_proc)
+    atualizar()
+    root.mainloop()
+
+
 
 def iniciar_dashboard():
     threading.Thread(target=atualizar_cpu, daemon=True).start()

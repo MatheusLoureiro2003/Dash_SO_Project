@@ -1,51 +1,64 @@
-from PyQt5.QtWidgets import QApplication, QWidget, QVBoxLayout, QLabel
-import sys
-import threading
-import time
-from PyQt5.QtWidgets import QApplication
-from  cpuModel import lerUsoCpu
-from memoryModel import lerUsoMemoria
+import tkinter as tk
 
-class DashboardView(QWidget):
-    def __init__(self):
-        super().__init__()
-        self.setWindowTitle("Dashboard do Sistema")
-        self.layout = QVBoxLayout()
+# Variáveis globais para armazenar widgets
+uso_cpu_label = None
+ociosidade_label = None
+memoria_label = None
+processos_listbox = None
 
-        self.label_cpu = QLabel("CPU: --%")
-        self.label_mem = QLabel("Memória: --%")
+def iniciar_dashboard(cpu, memoria, processos):
+    global uso_cpu_label, ociosidade_label, memoria_label, processos_listbox
 
-        self.layout.addWidget(self.label_cpu)
-        self.layout.addWidget(self.label_mem)
+    root = tk.Tk()
+    root.title("Dashboard do Sistema Operacional")
+    root.geometry("700x500")
 
-        self.setLayout(self.layout)
+    # Frame CPU
+    frame_cpu = tk.LabelFrame(root, text="Uso da CPU", padx=10, pady=10)
+    frame_cpu.pack(fill="x", padx=10, pady=5)
 
-    def atualizar_cpu(self, uso_cpu):
-        self.label_cpu.setText(f"CPU: {uso_cpu:.2f}%")
+    uso_cpu_label = tk.Label(frame_cpu, text="Uso da CPU: ")
+    uso_cpu_label.pack(anchor="w")
 
-    def atualizar_memoria(self, uso_mem):
-        self.label_mem.setText(f"Memória: {uso_mem:.2f}%")
+    ociosidade_label = tk.Label(frame_cpu, text="Tempo Ocioso: ")
+    ociosidade_label.pack(anchor="w")
 
+    # Frame Memória
+    frame_mem = tk.LabelFrame(root, text="Uso da Memória", padx=10, pady=10)
+    frame_mem.pack(fill="x", padx=10, pady=5)
 
-def atualizar_periodicamente(view):
-    while True:
-        uso_cpu, ociosidade = lerUsoCpu()
-        uso_mem, memDisponivel, memTotal, memVirtualTotal = lerUsoMemoria()
-        view.atualizar_cpu(uso_cpu)
-        view.atualizar_memoria(uso_mem)
-        time.sleep(2)
+    memoria_label = tk.Label(frame_mem, text="Informações de Memória")
+    memoria_label.pack(anchor="w")
 
-def run():
-    app = QApplication(sys.argv)
-    view = DashboardView()
-    view.show()
+    # Frame Processos
+    frame_proc = tk.LabelFrame(root, text="Processos", padx=10, pady=10)
+    frame_proc.pack(fill="both", expand=True, padx=10, pady=5)
 
-    t = threading.Thread(target=atualizar_periodicamente, args=(view,))
-    t.daemon = True
-    t.start()
+    processos_listbox = tk.Listbox(frame_proc)
+    processos_listbox.pack(fill="both", expand=True)
 
-    sys.exit(app.exec_())
+    # Primeira atualização
+    atualizar_interface(cpu, memoria, processos)
+
+    # Inicia loop da interface
+    root.mainloop()
 
 
-if __name__ == "__main__":
-    run()
+def atualizar_interface(cpu, memoria, processos):
+    global uso_cpu_label, ociosidade_label, memoria_label, processos_listbox
+
+    if cpu:
+        uso_cpu_label.config(text=f"Uso da CPU: {cpu.get('uso_cpu_percent', 0)}%")
+        ociosidade_label.config(text=f"Tempo Ocioso: {cpu.get('ociosidade_percent', 0)}%")
+
+    if memoria:
+        texto_mem = "\n".join([f"{chave}: {valor}" for chave, valor in memoria.items()])
+        memoria_label.config(text=texto_mem)
+
+    if processos:
+        processos_listbox.delete(0, tk.END)
+        for pid, info in processos.items():
+            nome = info.get("nome", "Desconhecido")
+            usuario = info.get("usuario", "root")
+            cpu = info.get("cpu", "N/A")
+            processos_listbox.insert(tk.END, f"PID: {pid} | Usuário: {usuario} | Nome: {nome} | CPU: {cpu}%")
