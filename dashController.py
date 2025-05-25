@@ -1,12 +1,14 @@
 import threading
-from view import iniciar_dashboard, atualizar_interface
 import time
+import tkinter as tk
 
+from view import dashboard_view, atualizar_interface
 from cpuModel import lerUsoCpu
 from memoryModel import lerUsoMemoria
-from processModel import dicionarioStatusProcesso, dicionarioStatCPUProcesso 
+from processModel import dicionarioStatusProcesso, dicionarioStatCPUProcesso
 
-# Locks para controle de concorrência (caso precise usar dados globais)
+
+# Locks para controle de concorrência
 lock_cpu = threading.Lock()
 lock_mem = threading.Lock()
 lock_proc = threading.Lock()
@@ -16,7 +18,8 @@ dados_cpu = {}
 dados_mem = {}
 dados_proc = {}
 
-# Funções que atualizam os dados ciclicamente
+
+# Funções que atualizam os dados em paralelo
 
 def atualizar_cpu():
     global dados_cpu
@@ -29,6 +32,7 @@ def atualizar_cpu():
             }
         time.sleep(5)
 
+
 def atualizar_memoria():
     global dados_mem
     while True:
@@ -36,6 +40,7 @@ def atualizar_memoria():
         with lock_mem:
             dados_mem = mem
         time.sleep(5)
+
 
 def atualizar_processos():
     global dados_proc
@@ -50,10 +55,10 @@ def atualizar_processos():
             dados_proc = processos
         time.sleep(5)
 
-# Função que chama a view com dados atualizados
+
+# Loop que atualiza a interface
 
 def loop_exibicao():
-    
     def atualizar():
         with lock_cpu:
             cpu = dados_cpu.copy()
@@ -63,19 +68,18 @@ def loop_exibicao():
             procs = dados_proc.copy()
 
         atualizar_interface(cpu, mem, procs)
-        root.after(1000, atualizar)  # chama de novo em 1 segundo
+        root.after(1000, atualizar)  # atualiza a cada 1 segundo
 
     global root
-    from tkinter import Tk
-    root = Tk()
-    root.title("Dashboard do Sistema")
-    iniciar_dashboard(dados_cpu, dados_mem, dados_proc)
-    atualizar()
+    root = tk.Tk()
+    dashboard_view(root, dados_cpu, dados_mem, dados_proc)
+    root.after(1000, atualizar)  # primeira atualização após 1 segundo
     root.mainloop()
 
 
+# Função principal que inicia tudo
 
-def iniciar_dashboard():
+def iniciar_controller():
     threading.Thread(target=atualizar_cpu, daemon=True).start()
     threading.Thread(target=atualizar_memoria, daemon=True).start()
     threading.Thread(target=atualizar_processos, daemon=True).start()

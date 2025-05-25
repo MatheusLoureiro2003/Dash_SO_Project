@@ -1,46 +1,6 @@
 #Projeto Dashboard Sistemas Operacionais
 
-import time
-from dashController import iniciar_dashboard
-
-#from dashController import update_dashboard
-# from cpuModel import lerUsoCpu, lerOciosidadeCpu 
-
-#from processModel import processosTodos, statusProcesso, cpuProcesso, dicionarioStatusProcesso
-
-#pids = processos_todos()
-#if pids:
-#        read_status(pids[0])
-# uso = lerUsoCpu()
-# ociosidade = lerOciosidadeCpu()
-# print(f"Utilização CPU: {uso}%")
-# print(f"Tempo Ocioso CPU {ociosidade}%")
-#pids = processosTodos()
-#for pid in pids[:5]:
-#        print(f"\n🔍 Processo PID: {pid}")
-#
-#       info = statusProcesso(pid)
-#        if info:
-#           print("📦 statusProcesso:")
-#            for chave, valor in info.items():
-#                print(f"  {chave}: {valor}")
-#
-#        infoCPU = cpuProcesso(pid)
-#        if infoCPU:
-#            print("⚙️ cpuProcesso:")
-#            for chave, valor in infoCPU.items():
-#                print(f"  {chave}: {valor}")
-
-"""def main():
-    while True:
-        update_dashboard()
-        time.sleep(1)
+from dashController import iniciar_controller
 
 if __name__ == "__main__":
-    main()"""
-
-
-
-
-if __name__ == "__main__":
-    iniciar_dashboard()
+    iniciar_controller()

@@ -33,19 +33,12 @@ def lerUsoMemoria():
 
         usoMemoria = 100 * (1 - memDisponivel / memTotal)
 
-        return round(usoMemoria,2), memDisponivel , memTotal_MB, memVirtualTotal_MB
+        return {
+            "Uso Memória RAM (%)": round(usoMemoria, 2),
+            "Memória RAM Disponível (kB)": memDisponivel,
+            "Memória RAM Total (kB)": memTotal,
+            "Swap Total (kB)": memVirtualTotal,
+            "Swap Livre (kB)": memVirtualLivre,
+            "Uso Swap (%)": round(usoMemVirtual, 2)
+        }
 
-
-
-## TESTE
-
-# usoRAM, memDisponivelKB, memTotalMB, memVirtualTotalMB = lerUsoMemoria()
-
-# memDisponivelMB = memDisponivelKB
-
-# print("========== DASHBOARD DE MEMÓRIA ==========")
-# print(f"Uso de RAM:               {usoRAM:.2f} %")
-# print(f"Memória Disponível:       {memDisponivelMB:.2f} kb")
-# print(f"Memória RAM Total:        {memTotalMB:.2f} kb")
-# print(f"Memória Virtual (Swap):   {memVirtualTotalMB:.2f} kb")
-# print("==========================================")
