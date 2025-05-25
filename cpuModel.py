@@ -1,8 +1,8 @@
 import threading
 import time
 
-lock = threading.Lock() #trava que controla o acesso seguro a recursos compartilhados em threads.
-uso_cpu_global = None
+# lock = threading.Lock() #trava que controla o acesso seguro a recursos compartilhados em threads.
+# uso_cpu_global = None
 
 
 def lerUsoCpu():
@@ -43,25 +43,25 @@ def lerUsoCpu():
 
     return round(usoCpu, 2), round(ociosidade, 2)
 
-def monitorarCpu():
-    global uso_cpu_global
+# def monitorarCpu():
+#     global uso_cpu_global
 
-    # Chama lerUsoCpu que já inclui a pausa de 5 segundos internamente
-    uso, ocioso = lerUsoCpu()
+#     # Chama lerUsoCpu que já inclui a pausa de 5 segundos internamente
+#     uso, ocioso = lerUsoCpu()
 
-    # Protege a atualização da variável global com lock
-    with lock:
-        uso_cpu_global = uso
-        ociosidade = ocioso
+#     # Protege a atualização da variável global com lock
+#     with lock:
+#         uso_cpu_global = uso
+#         ociosidade = ocioso
 
-    print(f"Uso CPU atualizado: {uso_cpu_global}%")
-    print(f"Ociosidade CPU: {ociosidade}%")
-        #Dentro do with lock, a variável global uso_cpu_global é atualizada com segurança, 
-        # para que outras threads não leiam ela enquanto está sendo modificada.
+#     print(f"Uso CPU atualizado: {uso_cpu_global}%")
+#     print(f"Ociosidade CPU: {ociosidade}%")
+#         #Dentro do with lock, a variável global uso_cpu_global é atualizada com segurança, 
+#         # para que outras threads não leiam ela enquanto está sendo modificada.
 
-def thread_monitor():
-    while True:
-        monitorarCpu()
+# def thread_monitor():
+#     while True:
+#         monitorarCpu()
 
-t = threading.Thread(target=thread_monitor)
-t.start()
+# t = threading.Thread(target=thread_monitor)
+# t.start()
