@@ -39,13 +39,13 @@ def lerUsoMemoria():
 
 ## TESTE
 
-usoRAM, memDisponivelKB, memTotalMB, memVirtualTotalMB = lerUsoMemoria()
+# usoRAM, memDisponivelKB, memTotalMB, memVirtualTotalMB = lerUsoMemoria()
 
-memDisponivelMB = memDisponivelKB
+# memDisponivelMB = memDisponivelKB
 
-print("========== DASHBOARD DE MEMÓRIA ==========")
-print(f"Uso de RAM:               {usoRAM:.2f} %")
-print(f"Memória Disponível:       {memDisponivelMB:.2f} kb")
-print(f"Memória RAM Total:        {memTotalMB:.2f} kb")
-print(f"Memória Virtual (Swap):   {memVirtualTotalMB:.2f} kb")
-print("==========================================")
+# print("========== DASHBOARD DE MEMÓRIA ==========")
+# print(f"Uso de RAM:               {usoRAM:.2f} %")
+# print(f"Memória Disponível:       {memDisponivelMB:.2f} kb")
+# print(f"Memória RAM Total:        {memTotalMB:.2f} kb")
+# print(f"Memória Virtual (Swap):   {memVirtualTotalMB:.2f} kb")
+# print("==========================================")
