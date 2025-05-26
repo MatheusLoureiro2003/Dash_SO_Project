@@ -29,15 +29,15 @@ def statusProcesso(processosID):
                 elif linha.startswith("Threads:"):
                     status_info["threads"] = int(linha.split()[1])
                 elif linha.startswith("VmSize:"):
-                    status_info["vm_size_kb"] = int(linha.split()[1])
+                    status_info["mem_total_kb"] = int(linha.split()[1])
                 elif linha.startswith("VmRSS:"):
-                    status_info["vm_rss_kb"] = int(linha.split()[1])
+                    status_info["mem_residente_kb"] = int(linha.split()[1])
                 elif linha.startswith("VmData:"):
-                    status_info["heap_kb"] = int(linha.split()[1])
+                    status_info["mem_heap_kb"] = int(linha.split()[1])
                 elif linha.startswith("VmStk:"):
-                    status_info["stack_kb"] = int(linha.split()[1])
+                    status_info["mem_stack_kb"] = int(linha.split()[1])
                 elif linha.startswith("VmExe:"):
-                    status_info["codigo_kb"] = int(linha.split()[1])
+                    status_info["mem_codigo_kb"] = int(linha.split()[1])
     except FileNotFoundError:
         print(f"Processo {processosID} não existe ou terminou.")
         return None
