@@ -63,6 +63,14 @@ def atualizar_interface(cpu, memoria, processos):
             nome = info.get("nome", "Desconhecido")
             usuario = info.get("usuario", "root")
             cpu_proc = info.get("tempo_total_segundos", "N/A")
-            processos_listbox.insert(tk.END, f"PID: {pid} | Usuário: {usuario} | Nome: {nome} | CPU: {cpu_proc}%")
+            mem_total = info.get("mem_total_kb", "N/A")
+            mem_heap = info.get("mem_heap_kb", "N/A")
+            mem_stack = info.get("mem_stack_kb", "N/A")
+            mem_codigo = info.get("mem_codigo_kb", "N/A")
+
+            processos_listbox.insert(
+                tk.END,
+                f"PID: {pid} | Usuário: {usuario} | Nome: {nome} | CPU: {cpu_proc}s | Total: {mem_total}kB | Heap: {mem_heap}kB | Stack: {mem_stack}kB | Código: {mem_codigo}kB"
+            )
     else:
         processos_listbox.insert(tk.END, "Sem dados de processos ainda")
