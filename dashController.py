@@ -45,6 +45,7 @@ def atualizar_memoria():
 def atualizar_processos():
     global dados_proc
     while True:
+        print("Atualizando processos...")
         status = dicionarioStatusProcesso()
         cpu = dicionarioStatCPUProcesso()
         processos = {}

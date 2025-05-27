@@ -3,7 +3,7 @@ import os
 def processosTodos():
     """Retorna e imprime uma lista de todos os PIDs encontrados em /proc"""
     processosID = [processosID for processosID in os.listdir('/proc') if processosID.isdigit()] #lista os processos do diretorio proc, verifica se todos os processos são dígitos.
-    print("processosID encontrados:", processosID)
+    # print("processosID encontrados:", processosID)
     return processosID
 
 
@@ -15,7 +15,6 @@ def statusProcesso(processosID):
     status_path = f'/proc/{processosID}/status'
     status_info = {}
 
-    print(f"\n Lendo arquivo: {status_path}")
     try:
         with open(status_path, 'r') as f:
             for linha in f:
@@ -59,7 +58,6 @@ def dicionarioStatusProcesso():
 def cpuProcesso(processosID):
     """Lê e retorna os dados do arquivo /proc/[pid]/stat como dicionário"""
     stat_path = f'/proc/{processosID}/stat'
-    print(f"\n Lendo arquivo: {stat_path}")
 
     
     status_info = {}
@@ -99,6 +97,4 @@ def dicionarioStatCPUProcesso():
 
 
 
-    #comentario na brach Matheus L
-    #thayssa
 
