@@ -22,3 +22,13 @@ Para executar o projeto, certifique-se de ter as seguintes dependências instala
 ```bash
 sudo apt update
 sudo apt install python3 python3-pip python3-tk make build-essential
+```
+---
+## Testes e Validações
+
+### Ambientes com carga alta de CPU utilizando stress
+Use a ferramenta stress (ou stress-ng) para simular carga total no processador.
+```bash
+sudo apt-get install stress
+stress --cpu 4 --timeout 30
+```
