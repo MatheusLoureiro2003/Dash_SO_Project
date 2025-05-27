@@ -2,7 +2,7 @@
 APP = main.py
 
 # Comando Python (use python ou python3 dependendo do seu sistema)
-PYTHON = python3
+PYTHON = $(shell which python3)
 
 # Alvo padrão
 run:
