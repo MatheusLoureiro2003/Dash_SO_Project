@@ -86,13 +86,62 @@ def cpuProcesso(processosID):
         print(f"Sem permissão para acessar {stat_path}.")
         return None    
 
+
+
+# Estado interno para armazenar valores anteriores
+prev_cpu_total = None
+prev_proc_totals = {}
+prev_cpu_delta = None
+
+def ler_cpu_total():
+    with open("/proc/stat", "r") as f:
+        linha = f.readline()
+        valores = list(map(int, linha.split()[1:]))
+        return sum(valores)
+
+def atualizar_cpu_total():
+    """Atualiza o delta global do tempo total da CPU. Deve ser chamado uma vez por ciclo."""
+    global prev_cpu_total, prev_cpu_delta
+    cpu_total_atual = ler_cpu_total()
+    if prev_cpu_total is None:
+        prev_cpu_total = cpu_total_atual
+        prev_cpu_delta = 0
+        return 0
+    prev_cpu_delta = cpu_total_atual - prev_cpu_total
+    prev_cpu_total = cpu_total_atual
+    return prev_cpu_delta
+
+def calcular_uso_cpu_processo(pid):
+    global prev_proc_totals, prev_cpu_delta
+
+    proc_info = cpuProcesso(pid)
+    if proc_info is None:
+        return 0.0
+    proc_total_atual = proc_info['tempo_total_jiffies']
+
+    if pid not in prev_proc_totals:
+        prev_proc_totals[pid] = proc_total_atual
+        return 0.0
+
+    proc_delta = proc_total_atual - prev_proc_totals[pid]
+    prev_proc_totals[pid] = proc_total_atual
+
+    num_cores = os.cpu_count() or 1
+    if prev_cpu_delta and prev_cpu_delta > 0:
+        uso = (proc_delta / prev_cpu_delta) * 100 * num_cores
+    else:
+        uso = 0.0
+
+    return round(uso, 2)
+
+
 def dicionarioStatCPUProcesso():
-    """Retorna um dicionário com os status de todos os processos ativos"""
+    """Retorna um dicionário com o uso percentual da CPU de todos os processos ativos"""
     processosCPU_info = {}
-    for processosID in processosTodos():
-        infoCPU = cpuProcesso(processosID)
-        if infoCPU:  # Ignora processos que não puderam ser lidos
-            processosCPU_info[processosID] = infoCPU
+    for pid in processosTodos():
+        uso_percentual = cpuProcesso(pid)  # sua função que calcula a % de CPU
+        if uso_percentual is not None:
+            processosCPU_info[pid] = uso_percentual
     return processosCPU_info
 
 
