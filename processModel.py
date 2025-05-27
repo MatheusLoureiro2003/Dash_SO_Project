@@ -87,61 +87,64 @@ def cpuProcesso(processosID):#lê o tanto de tempo que o processo ocupa na cpu
 
 
 # Estado interno para armazenar valores anteriores
-prev_cpu_total = None
-prev_proc_totals = {}
-prev_cpu_delta = None
+prev_cpu_total = None    # armazena o último valor total lido do tempo da CPU (em jiffies)
+                         # usado para calcular o delta entre leituras sucessivas
+prev_proc_totals = {}    # dicionário que mapeia ProcessoID de processos para seu último tempo total de CPU registrado
+                         # usado para calcular a variação do tempo CPU por processo entre chamadas
+prev_cpu_delta = None    # armazena a diferença do tempo total da CPU entre a última e penúltima leitura
+                         # usado para calcular percentuais relativos de uso da CPU
 
-def ler_cpu_total(): #lê o valor global da cpu, retornando o valor em jitters
-    with open("/proc/stat", "r") as f:
-        linha = f.readline()
-        valores = list(map(int, linha.split()[1:]))
-        return sum(valores)
+def ler_cpu_total(): # ler o tempo total da CPU em jiffies
+    with open("/proc/stat", "r") as f: #caminho com o valor do uso da cpu global
+        linha = f.readline()# lê a primeira linha, que tem dados agregados da CPU
+        valores = list(map(int, linha.split()[1:])) # converte os tempos para inteiros, ignorando o label 'cpu'
+        return sum(valores) # soma e retorna o total dos jiffies da CPU
 
 def atualizar_cpu_total():
-    """Atualiza o delta global do tempo total da CPU. Deve ser chamado uma vez por ciclo."""
-    global prev_cpu_total, prev_cpu_delta
-    cpu_total_atual = ler_cpu_total()
-    if prev_cpu_total is None:
-        prev_cpu_total = cpu_total_atual
-        prev_cpu_delta = 0
-        return 0
-    prev_cpu_delta = cpu_total_atual - prev_cpu_total
-    prev_cpu_total = cpu_total_atual
-    return prev_cpu_delta
+    """Atualiza o delta(diferença) global do tempo total da CPU. Deve ser chamado uma vez por ciclo."""
+    global prev_cpu_total, prev_cpu_delta # usa as variáveis globais para manter o estado entre chamadas
+    cpu_total_atual = ler_cpu_total() # lê o valor total atual do tempo da CPU (em jiffies)
+    if prev_cpu_total is None: # se for a primeira vez que a função é chamada
+        prev_cpu_total = cpu_total_atual # armazena o valor atual como referência para próximas leituras
+        prev_cpu_delta = 0  # delta inicial é zero, pois não há leitura anterior para comparar
+        return 0  # retorna zero pois não há variação calculável ainda
+    prev_cpu_delta = cpu_total_atual - prev_cpu_total # calcula a diferença desde a última leitura
+    prev_cpu_total = cpu_total_atual # atualiza o valor armazenado para próxima chamada
+    return prev_cpu_delta  # retorna o delta calculado (variação do tempo CPU)
 
 def calcular_uso_cpu_processo(pid):
-    global prev_proc_totals, prev_cpu_delta
+    global prev_proc_totals, prev_cpu_delta  # usa variáveis globais para manter dados entre chamadas
 
-    proc_info = cpuProcesso(pid)
-    if proc_info is None:
-        return 0.0
-    proc_total_atual = proc_info['tempo_total_jiffies']
+    proc_info = cpuProcesso(pid) # obtém informações atuais do processo pelo ProcessoID
+    if proc_info is None: se o processo não existir ou info não disponível
+        return 0.0 #retorna uso 0.0 para evitar erro
+    proc_total_atual = proc_info['tempo_total_jiffies'] # extrai o tempo total da CPU usado pelo processo (em jiffies)
 
-    if pid not in prev_proc_totals:
-        prev_proc_totals[pid] = proc_total_atual
-        return 0.0
+    if pid not in prev_proc_totals:  # se for a primeira vez que vemos esse ProcessoID
+        prev_proc_totals[pid] = proc_total_atual # armazena o tempo atual para próximas comparações
+        return 0.0  # retorna 0.0 pois não tem dado anterior para calcular delta
 
-    proc_delta = proc_total_atual - prev_proc_totals[pid]
-    prev_proc_totals[pid] = proc_total_atual
+    proc_delta = proc_total_atual - prev_proc_totals[pid] # calcula a variação do tempo CPU do processo
+    prev_proc_totals[pid] = proc_total_atual # atualiza o valor armazenado para a próxima chamada
 
-    num_cores = os.cpu_count() or 1
-    if prev_cpu_delta and prev_cpu_delta > 0:
-        uso = (proc_delta / prev_cpu_delta) * 100 * num_cores
+    num_cores = os.cpu_count() or 1  # obtém número de núcleos de CPU (usa 1 se não conseguir detectar)
+    if prev_cpu_delta and prev_cpu_delta > 0:  # verifica se o delta total da CPU está disponível e é válido
+        uso = (proc_delta / prev_cpu_delta) * 100 * num_cores # calcula o percentual de uso da CPU pelo processo
     else:
-        uso = 0.0
+        uso = 0.0 # se não tiver delta válido, considera uso 0
 
-    return round(uso, 2)
+    return round(uso, 2)  # retorna o uso arredondado com 2 casas decimais
 
 
 def dicionarioStatCPUProcesso():
     """Retorna um dicionário com o uso percentual da CPU de todos os processos ativos"""
-    processosCPU_info = {}
-    for pid in processosTodos():
-        uso_percentual = calcular_uso_cpu_processo(pid)
-        tempo_cpu = cpuProcesso(pid)
-        if tempo_cpu is not None:
-            processosCPU_info[pid] = {
-                **tempo_cpu,
-                "uso_percentual_cpu": uso_percentual
+    processosCPU_info = {}  #cria um dicionário vazio para armazenar informações dos processos
+    for pid in processosTodos():  # itera sobre todos os PIDs dos processos ativos
+        uso_percentual = calcular_uso_cpu_processo(pid) # calcula o uso percentual da CPU para o processo atual
+        tempo_cpu = cpuProcesso(pid)  # obtém as informações detalhadas do uso de CPU do processo
+        if tempo_cpu is not None:  # verifica se as informações do processo foram obtidas com sucesso
+            processosCPU_info[pid] = { # adiciona ao dicionário o PID como chave e um novo dicionário com as infos + uso percentual
+                **tempo_cpu,  # copia todas as informações do tempo_cpu para o novo dicionário
+                "uso_percentual_cpu": uso_percentual  # adiciona o uso percentual de CPU como um campo extra
             }
-    return processosCPU_info
+    return processosCPU_info # retorna o dicionário com os dados de todos os processos ativos
