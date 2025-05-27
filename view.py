@@ -39,7 +39,7 @@ def dashboard_view(root, cpu, memoria, processos):
     frame_proc = tk.LabelFrame(root, text="Processos", padx=10, pady=10)
     frame_proc.pack(fill="both", expand=True, padx=10, pady=5)
 
-    colunas = ("pid", "usuario", "nome", "cpu", "total", "heap", "stack", "codigo")
+    colunas = ("pid", "usuario", "nome", "cpu", "cpu_percent", "total", "heap", "stack", "codigo")
 
     processos_listbox = ttk.Treeview(frame_proc, columns=colunas, show="headings")
     processos_listbox.pack(fill="both", expand=True)
@@ -49,6 +49,7 @@ def dashboard_view(root, cpu, memoria, processos):
     processos_listbox.heading("usuario", text="Usuário")
     processos_listbox.heading("nome", text="Nome")
     processos_listbox.heading("cpu", text="CPU time")
+    processos_listbox.heading("cpu_percent", text="CPU%")
     processos_listbox.heading("total", text="Total")
     processos_listbox.heading("heap", text="Heap")
     processos_listbox.heading("stack", text="Stack")
@@ -92,6 +93,7 @@ def atualizar_interface(cpu, memoria, processos):
             nome = info.get("nome", "Desconhecido")
             usuario = info.get("usuario", "root")
             cpu_proc = f"{info.get('tempo_total_segundos', 'N/A')}s"
+            cpu_percent = f"{info.get('uso_percentual_cpu', 0)}%"
             mem_total = f"{info.get('mem_total_kb', 'N/A')}kB"
             mem_heap = f"{info.get('mem_heap_kb', 'N/A')}kB"
             mem_stack = f"{info.get('mem_stack_kb', 'N/A')}kB"
@@ -99,7 +101,7 @@ def atualizar_interface(cpu, memoria, processos):
 
             processos_listbox.insert(
                 "", "end", values=(
-                    pid, usuario, nome, cpu_proc,
+                    pid, usuario, nome, cpu_proc, cpu_percent,
                     mem_total, mem_heap, mem_stack, mem_codigo
                 )
             )

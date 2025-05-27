@@ -5,7 +5,7 @@ import tkinter as tk
 from view import dashboard_view, atualizar_interface
 from cpuModel import lerUsoCpu
 from memoryModel import lerUsoMemoria
-from processModel import dicionarioStatusProcesso, dicionarioStatCPUProcesso
+from processModel import dicionarioStatusProcesso, dicionarioStatCPUProcesso, atualizar_cpu_total
 
 
 # Locks para controle de concorrência
@@ -46,8 +46,12 @@ def atualizar_processos():
     global dados_proc
     while True:
         print("Atualizando processos...")
+
+        atualizar_cpu_total()
+
         status = dicionarioStatusProcesso()
         cpu = dicionarioStatCPUProcesso()
+        
         processos = {}
         for pid in status:
             if pid in cpu:

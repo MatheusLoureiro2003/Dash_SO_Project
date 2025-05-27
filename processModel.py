@@ -137,11 +137,11 @@ def dicionarioStatCPUProcesso():
     """Retorna um dicionário com o uso percentual da CPU de todos os processos ativos"""
     processosCPU_info = {}
     for pid in processosTodos():
-        uso_percentual = cpuProcesso(pid)  # sua função que calcula a % de CPU
-        if uso_percentual is not None:
-            processosCPU_info[pid] = uso_percentual
+        uso_percentual = calcular_uso_cpu_processo(pid)
+        tempo_cpu = cpuProcesso(pid)
+        if tempo_cpu is not None:
+            processosCPU_info[pid] = {
+                **tempo_cpu,
+                "uso_percentual_cpu": uso_percentual
+            }
     return processosCPU_info
-
-
-
-
