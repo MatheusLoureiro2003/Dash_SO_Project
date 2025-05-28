@@ -8,11 +8,10 @@
 
 def lerUsoMemoria():
     with open("/proc/meminfo") as l:
-        for linha in l:
-            print(linha.strip())
-            linha = l.readlines()
-            memTotal = int(linha[0].split()[1])
-            memDisponivel = int(linha[2].split()[1]) # memória que pode ser usada sem trocar dados para o disco
+        
+        linha = l.readlines()
+        memTotal = int(linha[0].split()[1])
+        memDisponivel = int(linha[2].split()[1]) # memória que pode ser usada sem trocar dados para o disco
 
         # MemTotal:        8129200 kB.     linha 0. (RAM)
         # MemFree:          227316 kB.     linha 1
@@ -24,12 +23,10 @@ def lerUsoMemoria():
         #SwapFree:        2097148 kB
 
         if memVirtualTotal > 0:
-            usoMemVirtual = 100 * (1 - memVirtualLivre / memVirtualTotal)
+         usoMemVirtual = 100 * (1 - memVirtualLivre / memVirtualTotal)
         else:
-            usoMemVirtual = 0 
+         usoMemVirtual = 0 
 
-        memTotal_MB = memTotal
-        memVirtualTotal_MB = memVirtualTotal
 
         usoMemoria = 100 * (1 - memDisponivel / memTotal)
 
@@ -41,4 +38,3 @@ def lerUsoMemoria():
             "Swap Livre (kB)": memVirtualLivre,
             "Uso Swap (%)": round(usoMemVirtual, 2)
         }
-
