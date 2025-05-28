@@ -129,7 +129,7 @@ def calcular_uso_cpu_processo(pid):
 
     numero_nucleos = os.cpu_count() or 1  # obtém número de núcleos de CPU (usa 1 se não conseguir detectar)
     if delta_cpu_total and delta_cpu_total > 0:  # verifica se o delta total da CPU está disponível e é válido
-        uso = (delta_processos / delta_cpu_total) * 100 * numero_nucleos # calcula o percentual de uso da CPU pelo processo
+        uso = (delta_processos / delta_cpu_total) * 100 #* numero_nucleos # calcula o percentual de uso da CPU pelo processo
     else:
         uso = 0.0 # se não tiver delta válido, considera uso 0
 
