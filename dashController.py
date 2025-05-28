@@ -5,7 +5,7 @@ import tkinter as tk
 from view import dashboard_view, atualizar_interface
 from cpuModel import lerUsoCpu
 from memoryModel import lerUsoMemoria
-from processModel import dicionarioStatusProcesso, dicionarioStatCPUProcesso, atualizar_cpu_total
+from processModel import dicionarioStatusProcesso, dicionarioStatCPUProcesso, atualizar_cpu_total, dicionarioPaginaProcesso
 
 
 # Locks para controle de concorrência
@@ -53,12 +53,13 @@ def atualizar_processos():
 
         status = dicionarioStatusProcesso()  # obtém informações do status atual de todos os processos
         cpu = dicionarioStatCPUProcesso()    # obtém o uso percentual da CPU e tempo de uso da CPU para todos os processos
+        paginas = dicionarioPaginaProcesso() # obtém informação da quantidade total de páginas para todos os processos
 
         processos = {}             # cria dicionário temporário para armazenar dados combinados dos processos
         for pid in status:         # para cada PID no status dos processos
-            if pid in cpu:         # verifica se também temos dados de CPU para esse PID
+            if pid in cpu and pid in paginas:         # verifica se também temos dados de CPU para esse PID
                 # une os dados de status e CPU para o mesmo processo em um único dicionário
-                processos[pid] = {**status[pid], **cpu[pid]}
+                processos[pid] = {**status[pid], **cpu[pid], **paginas[pid]}
 
         with lock_proc:            # entra na seção crítica para evitar condições de corrida ao atualizar dados
             dados_proc = processos  # atualiza o dicionário global com os dados mais recentes dos processos

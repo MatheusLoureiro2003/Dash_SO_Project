@@ -148,3 +148,35 @@ def dicionarioStatCPUProcesso():
                 "uso_percentual_cpu": uso_percentual  # adiciona o uso percentual de CPU como um campo extra
             }
     return processosCPU_info # retorna o dicionário com os dados de todos os processos ativos
+
+
+def paginaProcesso(processosID):
+    """Lê e retorna a quantidade de páginas usadas pelo processo a partir do arquivo /proc/[pid]/statm"""
+    statm_path = f'/proc/{processosID}/statm'  # Caminho onde estão os dados de memória do processo
+    try:
+        with open(statm_path, 'r') as f:
+            # Lê o conteúdo e divide os valores
+            campos = f.read().split()
+        
+        total_pagina = int(campos[0])  # O primeiro campo de statm é o tamanho total do processo em páginas (tamanho virtual)
+
+        return {
+            "total_pagina": total_pagina  # Retorna a quantidade de páginas usadas pelo processo
+        }
+    except FileNotFoundError:  # Exceção caso o processo não seja encontrado
+        print(f"Processo {processosID} não encontrado.")
+        return None
+    except PermissionError:  # Exceção caso não tenha permissão para acessar os dados do processo
+        print(f"Sem permissão para acessar {statm_path}.")
+        return None
+
+
+def dicionarioPaginaProcesso():
+    """Retorna um dicionário com a quantidade de páginas usadas por todos os processos ativos"""
+    processos_pagina_info = {}  # Dicionário onde serão armazenadas as informações de páginas dos processos
+    for processosID in processosTodos():  # Itera sobre todos os processos
+        pagina_info = paginaProcesso(processosID)  # Chama a função que retorna a quantidade de páginas
+        if pagina_info:  # Verifica se a informação foi obtida com sucesso
+            processos_pagina_info[processosID] = pagina_info  # Adiciona o PID e a quantidade de páginas no dicionário
+    return processos_pagina_info  # Retorna o dicionário com as informações de páginas de todos os processos
+
