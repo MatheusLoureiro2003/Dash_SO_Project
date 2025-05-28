@@ -89,9 +89,9 @@ def cpuProcesso(processosID):#lê o tanto de tempo que o processo ocupa na cpu
 # Estado interno para armazenar valores anteriores
 prev_cpu_total = None    # armazena o último valor total lido do tempo da CPU (em jiffies)
                          # usado para calcular o delta entre leituras sucessivas
-prev_proc_totals = {}    # dicionário que mapeia ProcessoID de processos para seu último tempo total de CPU registrado
+previo_processo_CPU = {}    # dicionário que mapeia ProcessoID de processos para seu último tempo total de CPU registrado
                          # usado para calcular a variação do tempo CPU por processo entre chamadas
-prev_cpu_delta = None    # armazena a diferença do tempo total da CPU entre a última e penúltima leitura
+delta_cpu_total = None    # armazena a diferença do tempo total da CPU entre a última e penúltima leitura
                          # usado para calcular percentuais relativos de uso da CPU
 
 def ler_cpu_total(): # ler o tempo total da CPU em jiffies
@@ -102,34 +102,34 @@ def ler_cpu_total(): # ler o tempo total da CPU em jiffies
 
 def atualizar_cpu_total():
     """Atualiza o delta(diferença) global do tempo total da CPU. Deve ser chamado uma vez por ciclo."""
-    global prev_cpu_total, prev_cpu_delta # usa as variáveis globais para manter o estado entre chamadas
+    global prev_cpu_total, delta_cpu_total # usa as variáveis globais para manter o estado entre chamadas
     cpu_total_atual = ler_cpu_total() # lê o valor total atual do tempo da CPU (em jiffies)
     if prev_cpu_total is None: # se for a primeira vez que a função é chamada
         prev_cpu_total = cpu_total_atual # armazena o valor atual como referência para próximas leituras
-        prev_cpu_delta = 0  # delta inicial é zero, pois não há leitura anterior para comparar
+        delta_cpu_total = 0  # delta inicial é zero, pois não há leitura anterior para comparar
         return 0  # retorna zero pois não há variação calculável ainda
-    prev_cpu_delta = cpu_total_atual - prev_cpu_total # calcula a diferença desde a última leitura
+    delta_cpu_total = cpu_total_atual - prev_cpu_total # calcula a diferença desde a última leitura
     prev_cpu_total = cpu_total_atual # atualiza o valor armazenado para próxima chamada
-    return prev_cpu_delta  # retorna o delta calculado (variação do tempo CPU)
+    return delta_cpu_total  # retorna o delta calculado (variação do tempo CPU)
 
 def calcular_uso_cpu_processo(pid):
-    global prev_proc_totals, prev_cpu_delta  # usa variáveis globais para manter dados entre chamadas
+    global previo_processo_CPU, delta_cpu_total  # usa variáveis globais para manter dados entre chamadas
 
     proc_info = cpuProcesso(pid) # obtém informações atuais do processo pelo ProcessoID
     if proc_info is None: #se o processo não existir ou info não disponível
         return 0.0 #retorna uso 0.0 para evitar erro
     proc_total_atual = proc_info['tempo_total_jiffies'] # extrai o tempo total da CPU usado pelo processo (em jiffies)
 
-    if pid not in prev_proc_totals:  # se for a primeira vez que vemos esse ProcessoID
-        prev_proc_totals[pid] = proc_total_atual # armazena o tempo atual para próximas comparações
+    if pid not in previo_processo_CPU:  # se for a primeira vez que vemos esse ProcessoID
+        previo_processo_CPU[pid] = proc_total_atual # armazena o tempo atual para próximas comparações
         return 0.0  # retorna 0.0 pois não tem dado anterior para calcular delta
 
-    proc_delta = proc_total_atual - prev_proc_totals[pid] # calcula a variação do tempo CPU do processo
-    prev_proc_totals[pid] = proc_total_atual # atualiza o valor armazenado para a próxima chamada
+    delta_processos = proc_total_atual - previo_processo_CPU[pid] # calcula a variação do tempo CPU do processo
+    previo_processo_CPU[pid] = proc_total_atual # atualiza o valor armazenado para a próxima chamada
 
-    num_cores = os.cpu_count() or 1  # obtém número de núcleos de CPU (usa 1 se não conseguir detectar)
-    if prev_cpu_delta and prev_cpu_delta > 0:  # verifica se o delta total da CPU está disponível e é válido
-        uso = (proc_delta / prev_cpu_delta) * 100 * num_cores # calcula o percentual de uso da CPU pelo processo
+    numero_nucleos = os.cpu_count() or 1  # obtém número de núcleos de CPU (usa 1 se não conseguir detectar)
+    if delta_cpu_total and delta_cpu_total > 0:  # verifica se o delta total da CPU está disponível e é válido
+        uso = (delta_processos / delta_cpu_total) * 100 * numero_nucleos # calcula o percentual de uso da CPU pelo processo
     else:
         uso = 0.0 # se não tiver delta válido, considera uso 0
 
@@ -144,7 +144,7 @@ def dicionarioStatCPUProcesso():
         tempo_cpu = cpuProcesso(pid)  # obtém as informações detalhadas do uso de CPU do processo
         if tempo_cpu is not None:  # verifica se as informações do processo foram obtidas com sucesso
             processosCPU_info[pid] = { # adiciona ao dicionário o PID como chave e um novo dicionário com as infos + uso percentual
-                **tempo_cpu,  # copia todas as informações do tempo_cpu para o novo dicionário
+                **tempo_cpu,  # copia todas as informações do tempo_cpu para o novo dicionário o ** desempacota o dicionário
                 "uso_percentual_cpu": uso_percentual  # adiciona o uso percentual de CPU como um campo extra
             }
     return processosCPU_info # retorna o dicionário com os dados de todos os processos ativos
