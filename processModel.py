@@ -116,7 +116,7 @@ def calcular_uso_cpu_processo(pid):
     global prev_proc_totals, prev_cpu_delta  # usa variáveis globais para manter dados entre chamadas
 
     proc_info = cpuProcesso(pid) # obtém informações atuais do processo pelo ProcessoID
-    if proc_info is None: se o processo não existir ou info não disponível
+    if proc_info is None: #se o processo não existir ou info não disponível
         return 0.0 #retorna uso 0.0 para evitar erro
     proc_total_atual = proc_info['tempo_total_jiffies'] # extrai o tempo total da CPU usado pelo processo (em jiffies)
 
