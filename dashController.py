@@ -102,8 +102,10 @@ def atualizar_processos():
                     "uso_percentual_cpu": usos[pid],
                     **paginas[pid]
                 }
+        processos_ordenados = dict(sorted(processos.items(), key=lambda item: item[1].get("uso_percentual_cpu", 0), reverse=True))
+
         with lock_proc:
-            dados_proc = processos
+            dados_proc = processos_ordenados
         time.sleep(5)
 
 # def atualizar_processos():
