@@ -1,11 +1,11 @@
 import threading
 import time
 import tkinter as tk
-
+import os
 from view import dashboard_view, atualizar_interface
 from cpuModel import lerUsoCpu
 from memoryModel import lerUsoMemoria
-from processModel import dicionarioStatusProcesso, dicionarioStatCPUProcesso, atualizar_cpu_total, dicionarioPaginaProcesso
+from processModel import dicionarioStatusProcesso, dicionarioStatCPUProcesso, atualizar_cpu_total, dicionarioPaginaProcesso,ler_cpu_total, processosTodos, cpuProcesso
 
 
 # Locks para controle de concorrência
@@ -42,29 +42,90 @@ def atualizar_memoria():
             dados_mem = mem     # atualiza o dicionário global com os dados de memória obtidos
         time.sleep(5)           # pausa a execução por 5 segundos antes de atualizar novamente
 
+def snapshot():
+    """Tira uma foto de jiffies da CPU total e de cada processo."""
+    cpu_total = ler_cpu_total()
+    proc_times = {}
+    for pid in processosTodos(): 
+        info = cpuProcesso(pid)
+        if info is not None:
+            proc_times[pid] = info["tempo_total_jiffies"]
+    return cpu_total, proc_times
+
+
+def calcular_usos(cpu0, proc0, cpu1, proc1):
+    """Calcula o uso percentual da CPU de cada processo entre duas fotos."""
+    delta_cpu = cpu1 - cpu0
+    cores = os.cpu_count() or 1
+    usos = {}
+    if delta_cpu <= 0:
+        return usos
+    for pid, t0 in proc0.items():
+        t1 = proc1.get(pid)
+        if t1 is None:
+            continue
+        delta_p = t1 - t0
+        uso = (delta_p / delta_cpu) * 100 * cores
+        usos[pid] = round(max(0.0, min(uso, 100.0)), 2)
+    return usos
 
 
 def atualizar_processos():
-    global dados_proc               # declara que vai usar a variável global dados_proc
-    while True:                    # loop infinito para atualizar os dados continuamente
-        print("Atualizando processos...")  # mensagem de log para indicar que a atualização começou
+    global dados_proc
+    prev_cpu_total = None
+    prev_proc_times = {}
+    while True:
+        print("Atualizando processos...")
+        # Foto inicial se ainda não existir
+        cpu0, proc0 = snapshot()
+        if prev_cpu_total is None:
+            prev_cpu_total, prev_proc_times = cpu0, proc0
+            time.sleep(5)
+            continue
+        # Nova foto e cálculo de uso
+        cpu1, proc1 = snapshot()
+        usos = calcular_usos(prev_cpu_total, prev_proc_times, cpu1, proc1)
+        prev_cpu_total, prev_proc_times = cpu1, proc1
 
-        atualizar_cpu_total()      # atualiza o delta do tempo total da CPU para cálculos de uso
+        # Coleta as demais informações
+        status = dicionarioStatusProcesso()
+        cpu = dicionarioStatCPUProcesso()
+        paginas = dicionarioPaginaProcesso()
 
-        status = dicionarioStatusProcesso()  # obtém informações do status atual de todos os processos
-        cpu = dicionarioStatCPUProcesso()    # obtém o uso percentual da CPU e tempo de uso da CPU para todos os processos
-        paginas = dicionarioPaginaProcesso() # obtém informação da quantidade total de páginas para todos os processos
+        processos = {}
+        for pid in status:
+            if pid in cpu and pid in paginas and pid in usos:
+                processos[pid] = {
+                    **status[pid],
+                    **cpu[pid],
+                    "uso_percentual_cpu": usos[pid],
+                    **paginas[pid]
+                }
+        with lock_proc:
+            dados_proc = processos
+        time.sleep(5)
 
-        processos = {}             # cria dicionário temporário para armazenar dados combinados dos processos
-        for pid in status:         # para cada PID no status dos processos
-            if pid in cpu and pid in paginas:         # verifica se também temos dados de CPU para esse PID
-                # une os dados de status e CPU para o mesmo processo em um único dicionário
-                processos[pid] = {**status[pid], **cpu[pid], **paginas[pid]}
+# def atualizar_processos():
+#     global dados_proc               # declara que vai usar a variável global dados_proc
+#     while True:                    # loop infinito para atualizar os dados continuamente
+#         print("Atualizando processos...")  # mensagem de log para indicar que a atualização começou
 
-        with lock_proc:            # entra na seção crítica para evitar condições de corrida ao atualizar dados
-            dados_proc = processos  # atualiza o dicionário global com os dados mais recentes dos processos
+#         atualizar_cpu_total()      # atualiza o delta do tempo total da CPU para cálculos de uso
 
-        time.sleep(5)              # pausa 5 segundos antes de repetir a atualização
+#         status = dicionarioStatusProcesso()  # obtém informações do status atual de todos os processos
+#         cpu = dicionarioStatCPUProcesso()    # obtém o uso percentual da CPU e tempo de uso da CPU para todos os processos
+#         paginas = dicionarioPaginaProcesso() # obtém informação da quantidade total de páginas para todos os processos
+
+#         processos = {}             # cria dicionário temporário para armazenar dados combinados dos processos
+#         for pid in status:         # para cada PID no status dos processos
+#             if pid in cpu and pid in paginas:         # verifica se também temos dados de CPU para esse PID
+#                 # une os dados de status e CPU para o mesmo processo em um único dicionário
+#                 processos[pid] = {**status[pid], **cpu[pid], **paginas[pid]}
+
+#         with lock_proc:            # entra na seção crítica para evitar condições de corrida ao atualizar dados
+#             dados_proc = processos  # atualiza o dicionário global com os dados mais recentes dos processos
+
+#         time.sleep(5)              # pausa 5 segundos antes de repetir a atualização
 
 
 
