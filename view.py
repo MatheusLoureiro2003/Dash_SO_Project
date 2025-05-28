@@ -2,6 +2,7 @@ import tkinter as tk
 from tkinter import ttk
 
 # Variáveis globais para armazenar widgets
+
 uso_cpu_label = None
 ociosidade_label = None
 memoria_label = None
@@ -39,7 +40,7 @@ def dashboard_view(root, cpu, memoria, processos):
     frame_proc = tk.LabelFrame(root, text="Processos", padx=10, pady=10)
     frame_proc.pack(fill="both", expand=True, padx=10, pady=5)
 
-    colunas = ("pid", "usuario", "nome", "cpu", "cpu_percent", "total", "heap", "stack", "codigo")
+    colunas = ("pid", "usuario", "nome", "cpu", "cpu_percent", "total", "heap", "stack", "codigo", "paginas")
 
     processos_listbox = ttk.Treeview(frame_proc, columns=colunas, show="headings")
     processos_listbox.pack(fill="both", expand=True)
@@ -54,6 +55,7 @@ def dashboard_view(root, cpu, memoria, processos):
     processos_listbox.heading("heap", text="Heap")
     processos_listbox.heading("stack", text="Stack")
     processos_listbox.heading("codigo", text="Código")
+    processos_listbox.heading("paginas", text="Páginas")
 
     # Colunas ajustáveis
     for coluna in colunas:
@@ -98,11 +100,13 @@ def atualizar_interface(cpu, memoria, processos):
             mem_heap = f"{info.get('mem_heap_kb', 'N/A')}kB"
             mem_stack = f"{info.get('mem_stack_kb', 'N/A')}kB"
             mem_codigo = f"{info.get('mem_codigo_kb', 'N/A')}kB"
+            paginas = info.get("total_pagina", "N/A")
+
 
             processos_listbox.insert(
                 "", "end", values=(
                     pid, usuario, nome, cpu_proc, cpu_percent,
-                    mem_total, mem_heap, mem_stack, mem_codigo
+                    mem_total, mem_heap, mem_stack, mem_codigo, paginas
                 )
             )
     else:

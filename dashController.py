@@ -69,6 +69,7 @@ def calcular_usos(cpu0, proc0, cpu1, proc1):
         usos[pid] = round(max(0.0, min(uso, 100.0)), 2)
     return usos
 
+# MARK: Função que atualiza os processos em execução
 
 def atualizar_processos():
     global dados_proc
@@ -128,8 +129,7 @@ def atualizar_processos():
 #         time.sleep(5)              # pausa 5 segundos antes de repetir a atualização
 
 
-
-# Loop que atualiza a interface gráfica periodicamente
+# MARK: Função que inicia o loop de exibição da interface gráfica
 
 def loop_exibicao():
     def atualizar():
@@ -152,7 +152,7 @@ def loop_exibicao():
     root.after(1000, atualizar)          # agenda a primeira atualização da interface para daqui 1 segundo
     root.mainloop()                     # inicia o loop principal da interface gráfica Tkinter
 
-# Função principal que inicia tudo
+
 
 def iniciar_controller():
     threading.Thread(target=atualizar_cpu, daemon=True).start()  # inicia thread em segundo plano para atualizar dados da CPU continuamente
