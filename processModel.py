@@ -219,6 +219,34 @@ def dicionarioStatCPUProcesso():
             }
     return processosCPU_info # retorna o dicionário com os dados de todos os processos ativos
 
+def snapshot():
+    """Tira uma foto de jiffies da CPU total e de cada processo."""
+    cpu_total = ler_cpu_total()
+    proc_times = {}
+    for pid in processosTodos(): 
+        info = cpuProcesso(pid)
+        if info is not None:
+            proc_times[pid] = info["tempo_total_jiffies"]
+    return cpu_total, proc_times
+
+
+def calcular_usos(cpu0, proc0, cpu1, proc1):
+    """Calcula o uso percentual da CPU de cada processo entre duas fotos."""
+    delta_cpu = cpu1 - cpu0
+    cores = os.cpu_count() or 1
+    usos = {}
+    if delta_cpu <= 0:
+        return usos
+    for pid, t0 in proc0.items():
+        t1 = proc1.get(pid)
+        if t1 is None:
+            continue
+        delta_p = t1 - t0
+        uso = (delta_p / delta_cpu) * 100 * cores
+        usos[pid] = round(max(0.0, min(uso, 100.0)), 2)
+    return usos
+
+
 
 # MARK: Funções que lêem a quantidade de páginas usadas por cada processo
 
