@@ -40,7 +40,7 @@ def dashboard_view(root, cpu, memoria, processos):
     frame_proc = tk.LabelFrame(root, text="Processos", padx=10, pady=10)
     frame_proc.pack(fill="both", expand=True, padx=10, pady=5)
 
-    colunas = ("pid", "usuario", "nome", "cpu", "cpu_percent", "total", "heap", "stack", "codigo", "paginas")
+    colunas = ("pid", "usuario", "nome", "cpu", "cpu_percent", "threads","total", "heap", "stack", "codigo", "paginas")
 
     processos_listbox = ttk.Treeview(frame_proc, columns=colunas, show="headings")
     processos_listbox.pack(fill="both", expand=True)
@@ -51,7 +51,8 @@ def dashboard_view(root, cpu, memoria, processos):
     processos_listbox.heading("nome", text="Nome")
     processos_listbox.heading("cpu", text="CPU time")
     processos_listbox.heading("cpu_percent", text="CPU%")
-    processos_listbox.heading("total", text="Total")
+    processos_listbox.heading("threads", text="Threads")
+    processos_listbox.heading("total", text="Mem Total")
     processos_listbox.heading("heap", text="Heap")
     processos_listbox.heading("stack", text="Stack")
     processos_listbox.heading("codigo", text="Código")
@@ -66,14 +67,24 @@ def dashboard_view(root, cpu, memoria, processos):
 def atualizar_interface(cpu, memoria, processos):
     global uso_cpu_label, ociosidade_label, memoria_label, processos_listbox
 
-    if cpu:
-        # Modificar propriedades do widget após ele já ter sido criado.
-        uso_cpu_label.config(text=f"Uso da CPU: {cpu.get('uso_cpu_percent', 0)}%")
-        # .get busca o valor de uso da CPU no dicionário cpu.
-        ociosidade_label.config(text=f"Tempo Ocioso: {cpu.get('ociosidade_percent', 0)}%")
+    
+
+    if cpu: # Verifica se o dicionário cpu (dados_cpu) não é None/vazio
+            # Atualiza os labels da CPU para incluir o total de processos e threads
+            uso_cpu_label.config(
+                text=f"Uso da CPU: {cpu.get('uso_cpu', 'N/A')}%     |    "
+                    f"Total de Processos: {cpu.get('total_processos', 'N/A')}"
+            )
+            ociosidade_label.config(
+                text=f"Tempo Ocioso: {cpu.get('ocioso', 'N/A')}%     |   "
+                    f"Total de Threads: {cpu.get('total_threads', 'N/A')}"
+            )
     else:
-        uso_cpu_label.config(text="Uso da CPU: Carregando...")
-        ociosidade_label.config(text="Tempo Ocioso: Carregando...")
+        # Texto padrão enquanto os dados não chegam
+        uso_cpu_label.config(text="Uso da CPU: Calculando...")
+        ociosidade_label.config(text="Tempo Ocioso: Calculando...")
+
+
 
     if memoria:
         texto_mem = "\n".join([f"{chave}: {valor}" for chave, valor in memoria.items()])
@@ -82,6 +93,10 @@ def atualizar_interface(cpu, memoria, processos):
         texto_mem = "Sem dados de memória ainda"
     memoria_label.config(text=texto_mem) 
     # Atualiza o texto do label de memória
+
+
+
+
 
     # Retorna todos os "itens-filho" (linhas) da Treeview E "limpa" a 
     # lista antes de preencher com os dados atualizados
@@ -96,6 +111,7 @@ def atualizar_interface(cpu, memoria, processos):
             usuario = info.get("usuario", "root")
             cpu_proc = f"{info.get('tempo_total_segundos', 'N/A')}s"
             cpu_percent = f"{info.get('uso_percentual_cpu', 0)}%"
+            threads = f"{info.get('threads', 0)}"
             mem_total = f"{info.get('mem_total_kb', 'N/A')}kB"
             mem_heap = f"{info.get('mem_heap_kb', 'N/A')}kB"
             mem_stack = f"{info.get('mem_stack_kb', 'N/A')}kB"
@@ -105,7 +121,7 @@ def atualizar_interface(cpu, memoria, processos):
 
             processos_listbox.insert(
                 "", "end", values=(
-                    pid, usuario, nome, cpu_proc, cpu_percent,
+                    pid, usuario, nome, cpu_proc, cpu_percent,threads,
                     mem_total, mem_heap, mem_stack, mem_codigo, paginas
                 )
             )

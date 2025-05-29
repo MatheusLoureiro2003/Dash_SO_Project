@@ -16,7 +16,7 @@ def lerUsoCpu():
         partes1 = linha.split()[1:]
         valores1 = list(map(int, partes1))
         
-    time.sleep(5) #bloqueante
+    time.sleep(1) #bloqueante
 
     with open("/proc/stat", "r") as l:
         linha = l.readline()
