@@ -194,7 +194,9 @@ def calcular_uso_cpu_processo(pid):
         uso = (delta_processos / delta_cpu_total) * 100 
     else:
         uso = 0.0 # se não tiver delta válido, considera uso 0
+        uso = 0.0 # se não tiver delta válido, considera uso 0
 
+    return round(uso, 2)  # retorna o uso arredondado com 2 casas decimais
     return round(uso, 2)  # retorna o uso arredondado com 2 casas decimais
 
 

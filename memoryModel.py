@@ -15,7 +15,9 @@ def lerUsoMemoria():
 
         if memVirtualTotal > 0:
          usoMemVirtual = 100 * (1 - memVirtualLivre / memVirtualTotal)
+         usoMemVirtual = 100 * (1 - memVirtualLivre / memVirtualTotal)
         else:
+         usoMemVirtual = 0 
          usoMemVirtual = 0 
 
         usoMemoria = 100 * (1 - memDisponivel / memTotal)
