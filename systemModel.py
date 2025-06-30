@@ -60,3 +60,38 @@ def getFileSystem ():
 #    for key, value in i.items():
 #        print(f"{key}: {value}")
 #    print()  
+
+
+
+#    A FAZER !!!!!!!!
+# Função para listar o conteúdo de um diretório específico, retornando subdiretórios e arquivos.
+
+
+
+# Mark: Função para listar o conteúdo de um diretório específico
+def listDirectoryContent(directory):
+     
+    directoryContent = []
+
+    try:
+        for item in os.listdir(directory):
+            itemPath = os.path.join(directory, item)
+
+            atribute = {
+                "Nome": item,
+                "Caminho": itemPath,
+                "Permissões": "N/A" if not os.path.exists(itemPath) else oct(os.stat(itemPath).st_mode)[-3:],
+                "Data de Criação": os.path.getctime(itemPath),
+                "Data de Modificação": os.path.getmtime(itemPath),
+                "Tipo": "Diretório" if os.path.isdir(itemPath) else "Arquivo"
+            }
+            directoryContent.append(atribute)
+        return directoryContent
+    except FileNotFoundError:
+        print(f"Erro: O diretório '{directory}' não foi encontrado.")
+        return None
+    
+#print("\nConteúdo de /home/thayssa/animal:")
+#conteudo_tmp = listDirectoryContent('/home/thayssa/')
+#for item in conteudo_tmp:
+# print(item.values())
