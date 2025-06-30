@@ -361,74 +361,6 @@ def list_posix_named_semaphores():
         pass # Ignora se /dev/shm não existe ou não pode ser acessado
     return sems
 
-# ----------------------- helpers SYSV -----------------------------
-class SemidDs(ctypes.Structure):    # struct semid_ds para semctl
-    _fields_ = [
-        ("sem_perm_uid", ctypes.c_uint32),  # uid
-        ("sem_perm_gid", ctypes.c_uint32),  # gid
-        ("sem_perm_mode", ctypes.c_uint16), # permissões
-        ("__pad1", ctypes.c_uint16),        # preenchimento
-        ("sem_nsems", ctypes.c_uint64),     # número de semáforos no conjunto
-        ("__pad2", ctypes.c_uint64 * 2),    # preenchimento
-    ]
-
-# Constante para semctl (obter informações de status)
-IPC_STAT = 2 #
-
-def _semctl(semid_):
-    """
-    Chama semctl(2) para obter informações detalhadas de um conjunto de semáforos SysV.
-    """
-    ds = SemidDs()
-    # semctl(semid, semnum, cmd, arg)
-    # semnum = 0 (ignorado para IPC_STAT)
-    # cmd = IPC_STAT
-    # arg = ponteiro para struct semid_ds
-    ret = libc.semctl(semid_, 0, IPC_STAT, ctypes.pointer(ds)) #
-    if ret != 0:
-        # Erro na chamada semctl, por exemplo, semid inválido ou permissão negada
-        return None
-    return {
-        "semid": semid_,
-        "nsems": ds.sem_nsems,
-        "perms": oct(ds.sem_perm_mode & 0o777),
-        "uid": ds.sem_perm_uid,
-        "gid": ds.sem_perm_gid,
-    }
-
-def list_sysv_semaphores():
-    """
-    Lê /proc/sysvipc/sem e, quando possível, complementa com semctl().
-    Retorna lista de dicionários com detalhes dos semáforos SysV.
-    """
-    sems = []
-    try:
-        with open("/proc/sysvipc/sem", 'r') as f: #
-            next(f)  # Pula a linha do cabeçalho
-            for line in f:
-                parts = line.strip().split()
-                if len(parts) < 4:
-                    continue
-                try:
-                    semid = int(parts[0])
-                    entry = {
-                        "tipo": "SYSV",
-                        "semid": semid,
-                        "key": parts[1],
-                        "perms_proc": parts[2], # Permissões como lidas do /proc
-                        "nsems_proc": parts[3], # Número de semáforos como lido do /proc
-                    }
-                    # Tenta obter informações mais detalhadas via semctl
-                    extra_info = _semctl(semid)
-                    if extra_info:
-                        entry.update(extra_info) # Adiciona/sobrescreve com dados de semctl
-                    sems.append(entry)
-                except ValueError:
-                    pass # Ignora linhas mal formatadas
-    except (FileNotFoundError, PermissionError):
-        pass # Ignora se /proc/sysvipc/sem não existe ou não pode ser acessado
-    return sems
-
 # ------------------- helpers para classificação de FD e Sockets ----------------------
 def _tipo_recurso_sem(real_path, target_stat):
     """
@@ -654,24 +586,6 @@ if __name__ == "__main__":
         print("Nenhum semáforo POSIX nomeado detectado ou sem permissão para /dev/shm.")
     print("-" * 30 + "\n")
 
-    # --- Testando list_sysv_semaphores() ---
-    print("--- Teste: list_sysv_semaphores() ---")
-    sysv_sems = list_sysv_semaphores()
-    print(f"Total de semáforos System V encontrados: {len(sysv_sems)}")
-    if sysv_sems:
-        print("\nAlguns exemplos de semáforos System V:")
-        for i, sem in enumerate(sysv_sems[:5]):
-            detail_str = f"SemID: {sem['semid']}, Chave: {sem['key']}"
-            if 'nsems' in sem: # Se semctl conseguiu detalhes
-                detail_str += f", N. Semáforos: {sem['nsems']}, Perms: {sem['perms']}, UID: {sem['uid']}, GID: {sem['gid']}"
-            else: # Se apenas /proc/sysvipc/sem foi lido
-                 detail_str += f", N. Semáforos (proc): {sem['nsems_proc']}, Perms (proc): {sem['perms_proc']}"
-            print(f"  {i+1}. {detail_str}")
-        if len(sysv_sems) > 5:
-            print("  ...(mais semáforos System V)")
-    else:
-        print("Nenhum semáforo System V detectado ou sem permissão para /proc/sysvipc/sem.")
-    print("-" * 30 + "\n")
 
 
     # --- Testando dicionarioStatusProcesso() com foco em recursos_abertos (incluindo sockets e semáforos) ---
@@ -731,3 +645,78 @@ if __name__ == "__main__":
     print("-" * 30 + "\n")
 
     print("Testes focados concluídos para processModel.py.")
+
+
+
+
+
+    """
+    # ----------------------- helpers SYSV -----------------------------
+class SemidDs(ctypes.Structure):    # struct semid_ds para semctl
+    _fields_ = [
+        ("sem_perm_uid", ctypes.c_uint32),  # uid
+        ("sem_perm_gid", ctypes.c_uint32),  # gid
+        ("sem_perm_mode", ctypes.c_uint16), # permissões
+        ("__pad1", ctypes.c_uint16),        # preenchimento
+        ("sem_nsems", ctypes.c_uint64),     # número de semáforos no conjunto
+        ("__pad2", ctypes.c_uint64 * 2),    # preenchimento
+    ]
+
+# Constante para semctl (obter informações de status)
+IPC_STAT = 2 #
+
+def _semctl(semid_):
+    """
+    #Chama semctl(2) para obter informações detalhadas de um conjunto de semáforos SysV.
+    """
+    ds = SemidDs()
+    # semctl(semid, semnum, cmd, arg)
+    # semnum = 0 (ignorado para IPC_STAT)
+    # cmd = IPC_STAT
+    # arg = ponteiro para struct semid_ds
+    ret = libc.semctl(semid_, 0, IPC_STAT, ctypes.pointer(ds)) #
+    if ret != 0:
+        # Erro na chamada semctl, por exemplo, semid inválido ou permissão negada
+        return None
+    return {
+        "semid": semid_,
+        "nsems": ds.sem_nsems,
+        "perms": oct(ds.sem_perm_mode & 0o777),
+        "uid": ds.sem_perm_uid,
+        "gid": ds.sem_perm_gid,
+    }
+
+def list_sysv_semaphores():
+    """
+    #Lê /proc/sysvipc/sem e, quando possível, complementa com semctl().
+    #Retorna lista de dicionários com detalhes dos semáforos SysV.
+    """
+    sems = []
+    try:
+        with open("/proc/sysvipc/sem", 'r') as f: #
+            next(f)  # Pula a linha do cabeçalho
+            for line in f:
+                parts = line.strip().split()
+                if len(parts) < 4:
+                    continue
+                try:
+                    semid = int(parts[0])
+                    entry = {
+                        "tipo": "SYSV",
+                        "semid": semid,
+                        "key": parts[1],
+                        "perms_proc": parts[2], # Permissões como lidas do /proc
+                        "nsems_proc": parts[3], # Número de semáforos como lido do /proc
+                    }
+                    # Tenta obter informações mais detalhadas via semctl
+                    extra_info = _semctl(semid)
+                    if extra_info:
+                        entry.update(extra_info) # Adiciona/sobrescreve com dados de semctl
+                    sems.append(entry)
+                except ValueError:
+                    pass # Ignora linhas mal formatadas
+    except (FileNotFoundError, PermissionError):
+        pass # Ignora se /proc/sysvipc/sem não existe ou não pode ser acessado
+    return sems
+
+    """
