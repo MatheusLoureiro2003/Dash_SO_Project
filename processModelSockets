@@ -1,0 +1,134 @@
+"""
+import os
+import pwd
+import stat
+import socket# ... (restante do código até a função listar_recursos_abertos_processo) ..."""
+
+# MARK: Modificação da Função: listar_recursos_abertos_processo
+def listar_recursos_abertos_processo(pid):
+    """
+    Lista os descritores de arquivo abertos por um processo lendo o diretório /proc/[pid]/fd.
+    Para cada descritor, tenta determinar o tipo (arquivo, socket, pipe, etc.) e o caminho/identificador.
+    Agora inclui detalhes para sockets de rede.
+    Retorna uma lista de dicionários, onde cada dicionário representa um recurso aberto.
+    """
+"""    recursos_abertos = []
+    fd_path = f'/proc/{pid}/fd' # Caminho para o diretório de descritores de arquivo do processo
+
+    all_sockets_network_info = ler_info_sockets_rede()
+
+    try:
+        for fd_num_str in os.listdir(fd_path):
+            fd_num = int(fd_num_str)
+            link_path = os.path.join(fd_path, fd_num_str)
+
+            try:
+                real_path = os.readlink(link_path)
+                
+                # START NEW LINE: Lógica aprimorada para determinar o tipo de recurso
+                # Tenta obter o stat do ALVO do link simbólico
+                # Se falhar (ex: link quebrado), ainda podemos usar o real_path para algumas inferências
+                target_stat = None
+                try:
+                    target_stat = os.stat(real_path) # Segue o link simbólico para obter o stat do alvo
+                except (FileNotFoundError, PermissionError):
+                    # Se o alvo não existe ou não temos permissão, target_stat permanece None
+                    pass
+
+                tipo_recurso = "Desconhecido"
+                detalhes = real_path # Detalhes padrão é o caminho real
+
+                # Prioriza a identificação de Sockets e Pipes pela string do real_path
+                if real_path.startswith('socket:['):
+                    tipo_recurso = "Socket"
+                elif real_path.startswith('pipe:['):
+                    tipo_recurso = "Pipe (FIFO)"
+                elif real_path.startswith('anon_inode:[eventpoll]'):
+                    tipo_recurso = "Anon Inode (Event Poll)"
+                elif real_path.startswith('anon_inode:[timerfd]'):
+                    tipo_recurso = "Anon Inode (Timer FD)"
+                elif real_path.startswith('/dev/'):
+                    # Para dispositivos, podemos tentar stat no alvo ou classificar pelo prefixo
+                    if target_stat and stat.S_ISCHR(target_stat.st_mode):
+                        tipo_recurso = "Dispositivo de Caractere"
+                    elif target_stat and stat.S_ISBLK(target_stat.st_mode):
+                        tipo_recurso = "Dispositivo de Bloco"
+                    else:
+                        tipo_recurso = "Dispositivo" # Genérico se não conseguir classificar mais
+                elif target_stat:
+                    # Se conseguimos stat no alvo, usamos seu tipo real
+                    if stat.S_ISREG(target_stat.st_mode):
+                        tipo_recurso = "Arquivo Regular"
+                    elif stat.S_ISDIR(target_stat.st_mode):
+                        tipo_recurso = "Diretório"
+                    elif stat.S_ISLNK(target_stat.st_mode): # Target is another symlink
+                        tipo_recurso = "Link Simbólico (target)"
+                    # Note: S_ISFIFO, S_ISSOCK já tratados por prefixo, mas essa é uma redundância para solidez
+                    elif stat.S_ISFIFO(target_stat.st_mode):
+                        tipo_recurso = "Pipe (FIFO)"
+                    elif stat.S_ISSOCK(target_stat.st_mode):
+                        tipo_recurso = "Socket"
+                    else:
+                        tipo_recurso = "Outro"
+                else:
+                    # Se não puder obter stat do alvo, e não é um tipo conhecido por prefixo, pode ser um link quebrado ou inacessível.
+                    # Manter "Desconhecido" ou "Link Simbólico (alvo inacessível)"
+                    tipo_recurso = "Link Simbólico (alvo desconhecido/inacessível)"
+
+                # Detalhamento de Sockets (continua sendo importante)
+                if tipo_recurso == "Socket":
+                    socket_inode = str(target_stat.st_ino) if target_stat else "N/A" # Usar inode do alvo se disponível
+                    if socket_inode in all_sockets_network_info:
+                        socket_details = all_sockets_network_info[socket_inode]
+                        detalhes = (
+                            f"Socket {socket_details['protocolo']} "
+                            f"Local: {socket_details['local_address']} "
+                            f"Remoto: {socket_details['remote_address']} "
+                            f"Estado: {socket_details['estado']}"
+                        )
+                    else:
+                        detalhes = f"Socket (inode: {socket_inode}, detalhes não encontrados em /proc/net)"
+                # END NEW LINE
+
+                recursos_abertos.append({
+                    "fd": fd_num,
+                    "tipo": tipo_recurso,
+                    "caminho": real_path,
+                    "detalhes": detalhes
+                })
+
+            except FileNotFoundError:
+                # O link simbólico pode ter sumido (recurso fechado entre listdir e readlink)
+                pass 
+            except PermissionError:
+                recursos_abertos.append({
+                    "fd": fd_num,
+                    "tipo": "Acesso Negado",
+                    "caminho": link_path,
+                    "detalhes": "Sem permissão para acessar o recurso"
+                })
+            except OSError as e:
+                recursos_abertos.append({
+                    "fd": fd_num,
+                    "tipo": "Erro",
+                    "caminho": link_path,
+                    "detalhes": f"Erro de I/O: {e}"
+                })
+            except Exception as e:
+                recursos_abertos.append({
+                    "fd": fd_num,
+                    "tipo": "Erro Desconhecido",
+                    "caminho": link_path,
+                    "detalhes": f"Exceção: {e}"
+                })
+
+    except FileNotFoundError:
+        pass 
+    except PermissionError:
+        pass
+    except Exception as e:
+        print(f"Erro ao listar descritores de arquivo para PID {pid}: {e}")
+
+    return recursos_abertos
+
+"""

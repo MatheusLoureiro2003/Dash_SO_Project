@@ -1,5 +1,17 @@
 import os
 import pwd
+import stat
+import socket
+import datetime # Para psutil e timestamp de criação (se psutil for usado)
+import ctypes # p/ chamar semctl(2) via lib C
+import ctypes.util # p/ encontrar a lib C
+import struct
+
+# Carrega a biblioteca C padrão para chamadas de sistema
+libc = ctypes.CDLL(ctypes.util.find_library('c'), use_errno=True) #
+
+# Variável global para armazenar informações globais de sockets de rede
+_global_network_sockets_info = {} # NOVO: Cache global para informações de sockets
 
 
 # Estado interno para armazenar valores anteriores
@@ -9,7 +21,6 @@ previo_processo_CPU = {}    # dicionário que mapeia ProcessoID de processos par
                          # usado para calcular a variação do tempo CPU por processo entre chamadas
 delta_cpu_total = None    # armazena a diferença do tempo total da CPU entre a última e penúltima leitura
                          # usado para calcular percentuais relativos de uso da CPU
-
 # MARK: Funções que lista todos os do sistema
 
 def processosTodos():
@@ -80,16 +91,19 @@ def statusProcesso(processosID):
 # MARK: Funções que retornam dicionários com os dados de todos os processos ativos
 
 def dicionarioStatusProcesso():
-    """Retorna um dicionário com os status de todos os processos ativos"""
-
+    """Retorna um dicionário com os status de todos os processos ativos, incluindo recursos abertos."""
     processos_info = {}
-    
+    # Atualiza o cache global de sockets de rede antes de processar os PIDs
+    global _global_network_sockets_info # Declara uso da variável global
+    _global_network_sockets_info = _ler_info_sockets_rede_global() # Preenche o cache global
+
     for processosID in processosTodos():
         info = statusProcesso(processosID)
-
-        if info:  # Ignora processos que não puderam ser lidos
+        if info:
+            # CORREÇÃO AQUI: Passar _global_network_sockets_info como argumento
+            recursos_abertos = listar_recursos_abertos_processo(processosID, _global_network_sockets_info)
+            info["recursos_abertos"] = recursos_abertos
             processos_info[processosID] = info
-
     return processos_info
 
 
@@ -316,3 +330,404 @@ def contar_processos_e_threads():
                 # Ocorre se 'threads' não for um número válido; ignora o processo para a soma de threads.
                 pass 
     return total_processos, total_threads
+
+
+# ----------------------- helpers POSIX ----------------------------
+def list_posix_named_semaphores():
+    """
+    Escaneia /dev/shm em busca de semáforos POSIX nomeados (arquivos 'sem.*').
+    Retorna lista de dicts com caminho, inode e permissões.
+    """
+    sems = []
+    shm_path = "/dev/shm"
+    try:
+        if os.path.exists(shm_path) and os.path.isdir(shm_path):
+            for fname in os.listdir(shm_path):
+                if not fname.startswith("sem."):
+                    continue
+                full = os.path.join(shm_path, fname)
+                try:
+                    st = os.stat(full)
+                    sems.append({
+                        "tipo": "POSIX Nomeado",
+                        "caminho": full,
+                        "inode": st.st_ino,
+                        "perms": oct(st.st_mode & 0o777),
+                        "tamanho": st.st_size
+                    })
+                except (FileNotFoundError, PermissionError):
+                    pass # Ignora arquivos que não podem ser acessados
+    except (FileNotFoundError, PermissionError):
+        pass # Ignora se /dev/shm não existe ou não pode ser acessado
+    return sems
+
+# ----------------------- helpers SYSV -----------------------------
+class SemidDs(ctypes.Structure):    # struct semid_ds para semctl
+    _fields_ = [
+        ("sem_perm_uid", ctypes.c_uint32),  # uid
+        ("sem_perm_gid", ctypes.c_uint32),  # gid
+        ("sem_perm_mode", ctypes.c_uint16), # permissões
+        ("__pad1", ctypes.c_uint16),        # preenchimento
+        ("sem_nsems", ctypes.c_uint64),     # número de semáforos no conjunto
+        ("__pad2", ctypes.c_uint64 * 2),    # preenchimento
+    ]
+
+# Constante para semctl (obter informações de status)
+IPC_STAT = 2 #
+
+def _semctl(semid_):
+    """
+    Chama semctl(2) para obter informações detalhadas de um conjunto de semáforos SysV.
+    """
+    ds = SemidDs()
+    # semctl(semid, semnum, cmd, arg)
+    # semnum = 0 (ignorado para IPC_STAT)
+    # cmd = IPC_STAT
+    # arg = ponteiro para struct semid_ds
+    ret = libc.semctl(semid_, 0, IPC_STAT, ctypes.pointer(ds)) #
+    if ret != 0:
+        # Erro na chamada semctl, por exemplo, semid inválido ou permissão negada
+        return None
+    return {
+        "semid": semid_,
+        "nsems": ds.sem_nsems,
+        "perms": oct(ds.sem_perm_mode & 0o777),
+        "uid": ds.sem_perm_uid,
+        "gid": ds.sem_perm_gid,
+    }
+
+def list_sysv_semaphores():
+    """
+    Lê /proc/sysvipc/sem e, quando possível, complementa com semctl().
+    Retorna lista de dicionários com detalhes dos semáforos SysV.
+    """
+    sems = []
+    try:
+        with open("/proc/sysvipc/sem", 'r') as f: #
+            next(f)  # Pula a linha do cabeçalho
+            for line in f:
+                parts = line.strip().split()
+                if len(parts) < 4:
+                    continue
+                try:
+                    semid = int(parts[0])
+                    entry = {
+                        "tipo": "SYSV",
+                        "semid": semid,
+                        "key": parts[1],
+                        "perms_proc": parts[2], # Permissões como lidas do /proc
+                        "nsems_proc": parts[3], # Número de semáforos como lido do /proc
+                    }
+                    # Tenta obter informações mais detalhadas via semctl
+                    extra_info = _semctl(semid)
+                    if extra_info:
+                        entry.update(extra_info) # Adiciona/sobrescreve com dados de semctl
+                    sems.append(entry)
+                except ValueError:
+                    pass # Ignora linhas mal formatadas
+    except (FileNotFoundError, PermissionError):
+        pass # Ignora se /proc/sysvipc/sem não existe ou não pode ser acessado
+    return sems
+
+# ------------------- helpers para classificação de FD e Sockets ----------------------
+def _tipo_recurso_sem(real_path, target_stat):
+    """
+    Detecta se o real_path de um descritor de arquivo corresponde a semáforo POSIX anônimo ou nomeado.
+    """
+    if real_path.startswith('anon_inode:[sem]'): #
+        return "POSIX Anônimo (Semaphore)"
+    if real_path.startswith('/dev/shm/sem.'): #
+        return "POSIX Nomeado (Semaphore)"
+    return None
+
+def _ler_info_sockets_rede_global():
+    """
+    Lê informações de sockets de rede globais do sistema de /proc/net/.
+    Retorna um dicionário mapeando inodes de socket para seus detalhes.
+    """
+    sockets_info = {}
+    socket_files = {
+        "tcp": "/proc/net/tcp",
+        "udp": "/proc/net/udp",
+        "tcp6": "/proc/net/tcp6",
+        "udp6": "/proc/net/udp6",
+    }
+
+    for proto, path in socket_files.items():
+        try:
+            with open(path, 'r') as f:
+                next(f)
+                for line in f:
+                    parts = line.strip().split()
+                    if len(parts) < 10:
+                        continue
+                    try:
+                        local_addr_hex, local_port_hex = parts[1].split(':')
+                        rem_addr_hex, rem_port_hex = parts[2].split(':')
+                        st = int(parts[3], 16)
+                        inode = int(parts[9])
+
+                        local_ip = ''
+                        if len(local_addr_hex) == 8: # IPv4
+                            # CORREÇÃO AQUI: usar struct.pack
+                            local_ip = socket.inet_ntoa(struct.pack("<L", int(local_addr_hex, 16))) #
+                        elif len(local_addr_hex) == 32: # IPv6
+                            local_ip = socket.inet_ntop(socket.AF_INET6, bytes.fromhex(local_addr_hex))
+                        else:
+                            local_ip = "N/A"
+
+                        local_port = int(local_port_hex, 16)
+
+                        remote_ip = ''
+                        if len(rem_addr_hex) == 8: # IPv4
+                            # CORREÇÃO AQUI: usar struct.pack
+                            remote_ip = socket.inet_ntoa(struct.pack("<L", int(rem_addr_hex, 16))) #
+                        elif len(rem_addr_hex) == 32: # IPv6
+                            remote_ip = socket.inet_ntop(socket.AF_INET6, bytes.fromhex(rem_addr_hex))
+                        else:
+                            remote_ip = "N/A"
+
+                        remote_port = int(rem_port_hex, 16)
+
+                        sockets_info[inode] = {
+                            "protocolo": proto,
+                            "local_address": f"{local_ip}:{local_port}",
+                            "remote_address": f"{remote_ip}:{remote_port}",
+                            "state": _get_socket_state_name(st),
+                            "inode": inode
+                        }
+                    except (ValueError, IndexError, socket.error, struct.error): # Adicionado struct.error
+                        continue
+        except (FileNotFoundError, PermissionError):
+            continue
+    return sockets_info
+
+# _get_socket_state_name 
+def _get_socket_state_name(state_hex_int):
+    # Conteúdo da sua função _get_socket_state_name
+    states = {
+        1: "ESTABLISHED", 2: "SYN_SENT", 3: "SYN_RECV", 4: "FIN_WAIT1",
+        5: "FIN_WAIT2", 6: "TIME_WAIT", 7: "CLOSE", 8: "CLOSE_WAIT",
+        9: "LAST_ACK", 10: "LISTEN", 11: "CLOSING", 12: "NEW_SYN_RECV"
+    }
+    return states.get(state_hex_int, f"UNKNOWN({state_hex_int})")
+
+
+# MARK: Função para listar recursos abertos por processo 
+def listar_recursos_abertos_processo(pid, global_network_sockets_info):
+    """
+    Lista os descritores de arquivo abertos por um processo lendo o diretório /proc/[pid]/fd.
+    Para cada descritor, tenta determinar o tipo (arquivo, socket, semáforo POSIX, pipe, etc.) e o caminho/identificador.
+    Utiliza informações globais de sockets para detalhamento.
+    Retorna um dicionário com listas de recursos categorizados.
+    """
+    recursos_abertos = {
+        'pid': pid,
+        'arquivos_regulares': [],
+        'sockets': [],
+        'pipes': [],
+        'dispositivos': [],
+        'semaphores_posix': [], # Para semáforos POSIX detectados via FD
+        'links_quebrados_ou_inacessiveis': [],
+        'outros': []
+    }
+    fd_path = f'/proc/{pid}/fd'
+
+    try:
+        for fd_num_str in os.listdir(fd_path):
+            fd_num = int(fd_num_str)
+            full_fd_path = os.path.join(fd_path, fd_num_str)
+
+            try:
+                real_path = os.readlink(full_fd_path)
+                
+                # Tenta obter o stat do ALVO do link simbólico
+                target_stat = None
+                try:
+                    # os.stat segue o link simbólico
+                    target_stat = os.stat(full_fd_path)
+                except (FileNotFoundError, PermissionError):
+                    pass # Se o alvo não existe ou sem permissão, target_stat permanece None
+
+                tipo_recurso = "Desconhecido"
+                detalhes = {
+                    'fd': fd_num,
+                    'caminho': real_path,
+                    'modo': oct(target_stat.st_mode) if target_stat else 'N/A',
+                    'inode': target_stat.st_ino if target_stat else 'N/A',
+                    'tamanho': target_stat.st_size if target_stat and os.path.exists(real_path) else 'N/A',
+                }
+
+                # Prioridade na classificação: Semáforos POSIX, Sockets, Pipes, Dispositivos, Arquivos
+                sem_tipo = _tipo_recurso_sem(real_path, target_stat)
+                if sem_tipo:
+                    detalhes['tipo'] = sem_tipo
+                    recursos_abertos['semaphores_posix'].append(detalhes)
+                elif real_path.startswith('socket:['): # Socket de domínio Unix ou outro
+                    inode = int(real_path.split('[')[1][:-1]) if '[' in real_path else 'N/A'
+                    socket_info = global_network_sockets_info.get(inode)
+                    if socket_info:
+                        detalhes['tipo'] = "Socket de Rede"
+                        detalhes.update(socket_info)
+                        recursos_abertos['sockets'].append(detalhes)
+                    else:
+                        detalhes['tipo'] = "Socket (Unix/Outro)"
+                        recursos_abertos['sockets'].append(detalhes)
+                elif real_path.startswith('pipe:['):
+                    detalhes['tipo'] = "Pipe (FIFO)"
+                    recursos_abertos['pipes'].append(detalhes)
+                elif target_stat:
+                    if stat.S_ISREG(target_stat.st_mode):
+                        detalhes['tipo'] = "Arquivo Regular"
+                        recursos_abertos['arquivos_regulares'].append(detalhes)
+                    elif stat.S_ISDIR(target_stat.st_mode):
+                        detalhes['tipo'] = "Diretório"
+                        recursos_abertos['arquivos_regulares'].append(detalhes) # Pode ser uma categoria separada se quiser
+                    elif stat.S_ISCHR(target_stat.st_mode):
+                        detalhes['tipo'] = "Dispositivo de Caractere"
+                        recursos_abertos['dispositivos'].append(detalhes)
+                    elif stat.S_ISBLK(target_stat.st_mode):
+                        detalhes['tipo'] = "Dispositivo de Bloco"
+                        recursos_abertos['dispositivos'].append(detalhes)
+                    elif stat.S_ISLNK(target_stat.st_mode):
+                         # O alvo do link é outro link, tratamos como arquivo regular por simplicidade aqui
+                        detalhes['tipo'] = "Link Simbólico (alvo)"
+                        recursos_abertos['arquivos_regulares'].append(detalhes)
+                    else:
+                        detalhes['tipo'] = "Outro"
+                        recursos_abertos['outros'].append(detalhes)
+                else:
+                    detalhes['tipo'] = "Link Quebrado/Inacessível"
+                    recursos_abertos['links_quebrados_ou_inacessiveis'].append(detalhes)
+
+            except (OSError, ValueError) as e:
+                # Captura erros ao lerlink ou stat, indicando um link quebrado ou inacessível
+                recursos_abertos['links_quebrados_ou_inacessiveis'].append({
+                    'fd': fd_num_str,
+                    'caminho': f"Erro ao ler link: {e}",
+                    'tipo': 'Link Quebrado/Inacessível'
+                })
+    except (FileNotFoundError, PermissionError):
+        pass # Diretório /proc/{pid}/fd não existe ou sem permissão
+
+    return recursos_abertos
+
+
+# MARK: Bloco de Teste Focado para processModel.py (Novas Funções)
+if __name__ == "__main__":
+    print("Iniciando testes focados em novas funcionalidades para processModel.py...\n")
+
+    # --- Testando ler_info_sockets_rede_global() ---
+    print("--- Teste: _ler_info_sockets_rede_global() ---")
+    # Chama a função global diretamente para testar sua funcionalidade
+    info_sockets_rede = _ler_info_sockets_rede_global() 
+    print(f"Total de sockets de rede encontrados no sistema: {len(info_sockets_rede)}")
+    
+    if info_sockets_rede:
+        print("\nAlguns exemplos de sockets de rede globais (inode: detalhes):")
+        count = 0
+        for inode, details in info_sockets_rede.items():
+            print(f"  Inode: {inode}")
+            print(f"    Protocolo: {details.get('protocolo', 'N/A')}")
+            print(f"    Local: {details.get('local_address', 'N/A')}")
+            print(f"    Remoto: {details.get('remote_address', 'N/A')}")
+            print(f"    Estado: {details.get('state', 'N/A')}")
+            count += 1
+            if count >= 5: # Limita a exibição para os primeiros 5 para brevidade
+                print("    ...(mais sockets)")
+                break
+    else:
+        print("Nenhum socket de rede encontrado ou sem permissão para acessar /proc/net.")
+    print("-" * 30 + "\n")
+
+    # --- Testando list_posix_named_semaphores() ---
+    print("--- Teste: list_posix_named_semaphores() ---")
+    posix_sems = list_posix_named_semaphores()
+    print(f"Total de semáforos POSIX nomeados encontrados: {len(posix_sems)}")
+    if posix_sems:
+        print("\nAlguns exemplos de semáforos POSIX nomeados:")
+        for i, sem in enumerate(posix_sems[:5]):
+            print(f"  {i+1}. Caminho: {sem['caminho']}, Inode: {sem['inode']}, Perms: {sem['perms']}, Tamanho: {sem['tamanho']} bytes")
+        if len(posix_sems) > 5:
+            print("  ...(mais semáforos POSIX nomeados)")
+    else:
+        print("Nenhum semáforo POSIX nomeado detectado ou sem permissão para /dev/shm.")
+    print("-" * 30 + "\n")
+
+    # --- Testando list_sysv_semaphores() ---
+    print("--- Teste: list_sysv_semaphores() ---")
+    sysv_sems = list_sysv_semaphores()
+    print(f"Total de semáforos System V encontrados: {len(sysv_sems)}")
+    if sysv_sems:
+        print("\nAlguns exemplos de semáforos System V:")
+        for i, sem in enumerate(sysv_sems[:5]):
+            detail_str = f"SemID: {sem['semid']}, Chave: {sem['key']}"
+            if 'nsems' in sem: # Se semctl conseguiu detalhes
+                detail_str += f", N. Semáforos: {sem['nsems']}, Perms: {sem['perms']}, UID: {sem['uid']}, GID: {sem['gid']}"
+            else: # Se apenas /proc/sysvipc/sem foi lido
+                 detail_str += f", N. Semáforos (proc): {sem['nsems_proc']}, Perms (proc): {sem['perms_proc']}"
+            print(f"  {i+1}. {detail_str}")
+        if len(sysv_sems) > 5:
+            print("  ...(mais semáforos System V)")
+    else:
+        print("Nenhum semáforo System V detectado ou sem permissão para /proc/sysvipc/sem.")
+    print("-" * 30 + "\n")
+
+
+    # --- Testando dicionarioStatusProcesso() com foco em recursos_abertos (incluindo sockets e semáforos) ---
+    print("--- Teste: dicionarioStatusProcesso() (foco em recursos abertos aprimorados) ---")
+    # dicionarioStatusProcesso() já inicializa _global_network_sockets_info
+    status_processos_com_recursos = dicionarioStatusProcesso()
+    print(f"Número de processos com status e recursos coletados: {len(status_processos_com_recursos)}")
+
+    # Tenta encontrar um PID com recursos abertos interessantes
+    pid_exemplo_recursos = None
+    for pid, info in status_processos_com_recursos.items():
+        recursos_categorizados = info.get('recursos_abertos', {})
+        if (recursos_categorizados.get('semaphores_posix') or
+            recursos_categorizados.get('sockets') or
+            recursos_categorizados.get('pipes') or
+            recursos_categorizados.get('dispositivos') or
+            recursos_categorizados.get('arquivos_regulares')): # Garantir que tenha algum recurso
+            pid_exemplo_recursos = pid
+            break
+    
+    # Fallback para o primeiro PID se nenhum com recursos interessantes for encontrado
+    if not pid_exemplo_recursos and processosTodos():
+        pid_exemplo_recursos = processosTodos()[0]
+
+    if pid_exemplo_recursos and pid_exemplo_recursos in status_processos_com_recursos:
+        print(f"\nDetalhes de Recursos Abertos para PID de exemplo ({pid_exemplo_recursos}):")
+        exemplo_info = status_processos_com_recursos[pid_exemplo_recursos]
+        print(f"  Nome do Processo: {exemplo_info.get('nome', 'N/A')}")
+        
+        recursos = exemplo_info.get('recursos_abertos', {}) # Agora é um dicionário categorizado
+        
+        # Lista todas as categorias de recursos
+        categorias_existentes = False
+        for category, items in recursos.items():
+            if items and category != 'pid': # 'pid' não é uma categoria de recursos para listar
+                categorias_existentes = True
+                print(f"\n  Categoria: {category.replace('_', ' ').title()}: ({len(items)} itens)")
+                # Exibe até 5 itens por categoria para brevidade
+                for i, item in enumerate(items[:5]): 
+                    display_str = f"    - FD {item.get('fd', 'N/A')}: Tipo: {item.get('tipo', 'N/A')}"
+                    if item.get('caminho'):
+                        display_str += f", Caminho/Destino: {item['caminho']}"
+                    if item.get('protocolo'): # Para sockets
+                        display_str += f", Proto: {item['protocolo']}, Local: {item['local_address']}, Remoto: {item['remote_address']}, Estado: {item['state']}"
+                    print(display_str)
+                    if 'inode' in item: # Adicionar inode para todos os tipos relevantes
+                         print(f"      Inode: {item['inode']}")
+                    print("      ---")
+                if len(items) > 5:
+                    print(f"    ...(mais {len(items) - 5} itens nesta categoria)")
+        
+        if not categorias_existentes:
+            print("  Nenhum recurso aberto detectado ou acesso negado para este processo.")
+
+    else:
+        print("\nNão foi possível obter detalhes de recursos para um PID de exemplo ou nenhum processo ativo com recursos.")
+    print("-" * 30 + "\n")
+
+    print("Testes focados concluídos para processModel.py.")
