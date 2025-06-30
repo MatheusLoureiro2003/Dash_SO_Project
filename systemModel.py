@@ -62,12 +62,6 @@ def getFileSystem ():
 #    print()  
 
 
-
-#    A FAZER !!!!!!!!
-# Função para listar o conteúdo de um diretório específico, retornando subdiretórios e arquivos.
-
-
-
 # Mark: Função para listar o conteúdo de um diretório específico
 def listDirectoryContent(directory):
      
