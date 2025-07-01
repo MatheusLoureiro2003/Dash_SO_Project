@@ -1,4 +1,5 @@
 import os
+import datetime
 
 # Mark: Obtem informaçoes de uso de espaço para um dado diretorio
 def getUsagePartition(diretctory):
@@ -71,18 +72,31 @@ def listDirectoryContent(directory):
         for item in os.listdir(directory):
             itemPath = os.path.join(directory, item)
 
+            item_type = "Diretório" if os.path.isdir(itemPath) else "Arquivo"
+            size = os.path.getsize(itemPath) if item_type == "Arquivo" else 0 # Obtém o tamanho apenas para arquivos
+
+            creationTimeFormatted = datetime.datetime.fromtimestamp(os.path.getctime(itemPath)).strftime('%Y-%m-%d %H:%M:%S')
+            modificationTimeFormatted = datetime.datetime.fromtimestamp(os.path.getmtime(itemPath)).strftime('%Y-%m-%d %H:%M:%S')
+
             atribute = {
                 "Nome": item,
                 "Caminho": itemPath,
                 "Permissões": "N/A" if not os.path.exists(itemPath) else oct(os.stat(itemPath).st_mode)[-3:],
-                "Data de Criação": os.path.getctime(itemPath),
-                "Data de Modificação": os.path.getmtime(itemPath),
-                "Tipo": "Diretório" if os.path.isdir(itemPath) else "Arquivo"
+                "Data de Criação": creationTimeFormatted,
+                "Data de Modificação": modificationTimeFormatted,
+                "Tipo": item_type,
+                "Tamanho (Bytes)": size
             }
             directoryContent.append(atribute)
         return directoryContent
     except FileNotFoundError:
         print(f"Erro: O diretório '{directory}' não foi encontrado.")
+        return None
+    except PermissionError:
+        print(f"Erro: Permissão negada para acessar o diretório '{directory}'.")
+        return None
+    except Exception as e:
+        print(f"Erro ao listar o conteúdo do diretório '{directory}': {e}")
         return None
     
 #print("\nConteúdo de /home/thayssa/animal:")

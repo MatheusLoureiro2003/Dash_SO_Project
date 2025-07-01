@@ -1,17 +1,50 @@
 import tkinter as tk
 from tkinter import ttk
+#import matplotlib
+
+
+# Armazenar objetos do gráfico globalmente
+cpu_fig, cpu_ax = None, None
+mem_fig, mem_ax = None, None
+cpu_canvas = None
+mem_canvas = None
 
 # Variáveis globais para armazenar widgets
 uso_cpu_label = None
 ociosidade_label = None
 memoria_label = None
 processos_listbox = None
+content_listbox = None
 
 # Mark: Função para listar o conteúdo de um diretório específico
-def diretoryContentView(root, content):
+def diretoryContentView(root, directoryData):
+    global content_listbox
+
     directoryWindow = tk.Toplevel(root)
     directoryWindow.title("Conteúdo do Diretório")
     directoryWindow.geometry("800x500")
+
+    frame_content = tk.LabelFrame(directoryWindow, text="Conteúdo do Diretório", padx=10, pady=10)
+    frame_content.pack(fill="both", expand=True, padx=10, pady=5)
+
+    columns = ("Nome", "Caminho", "Permissões", "Data de Criação", "Data de Modificação", "Tipo", "Tamanho")
+    content_listbox = ttk.Treeview(frame_content, columns=columns, show="headings")
+
+    #vsb = ttk.Scrollbar(frame_content, orient="vertical", command=content_listbox.yview)
+    #content_listbox.configure(yscrollcommand=vsb.set)
+    #vsb.pack(side='right', fill='y')    
+    content_listbox.pack(fill="both", expand=True)
+    
+    content_listbox.heading("Nome", text="Nome")
+    content_listbox.heading("Caminho", text="Caminho")
+    content_listbox.heading("Permissões", text="Permissões")
+    content_listbox.heading("Data de Criação", text="Data de Criação")
+    content_listbox.heading("Data de Modificação", text="Data de Modificação")
+    content_listbox.heading("Tipo", text="Tipo")
+    content_listbox.heading("Tamanho", text="Tamanho (Bytes)")
+    
+    updateDirectoryContentView(directoryData['items'])  # Atualiza a lista com o conteúdo do diretório
+    
 
 # Mark: Função para exibir a janela detalhada de processos
 def processView(root, cpu, memoria, processos):
@@ -64,8 +97,9 @@ def dashboard_view(root, cpu, memoria, processos):
     processButton = tk.Button(frame_opcoes, text="Processos", 
                               command=lambda: processView(root, cpu, memoria, processos))
     processButton.pack(side="left", padx=5, pady=5)
+
     directoryButton = tk.Button(frame_opcoes, text="Diretório", 
-                                command=lambda: diretoryContentView(root, "/"))  # Passa o diretório raiz como exemplo
+                                command=lambda: diretoryContentView(root, "/"))
     directoryButton.pack(side="left", padx=5, pady=5)
 
     # Frame CPU
@@ -81,6 +115,10 @@ def dashboard_view(root, cpu, memoria, processos):
     frame_mem.pack(fill="x", padx=10, pady=5)
     memoria_label = tk.Label(frame_mem, text="Informações de Memória", anchor="w", justify="left")  
     memoria_label.pack(anchor="w")
+
+    # Frame Gráficos
+    frame_graficos = tk.LabelFrame(root, text="Gráficos de Uso Global", padx=10, pady=10)
+    frame_graficos.pack(fill="both", expand=True, padx=10, pady=10)
 
     # Por isso, garantimos que a variável global 'processos_listbox' seja None aqui,
     # para que 'atualizar_interface' saiba que não deve tentar manipulá-la.
@@ -114,7 +152,6 @@ def atualizar_interface(cpu, memoria, processos):
             texto_mem = "Sem dados de memória ainda"
         memoria_label.config(text=texto_mem) 
     
-    
     if processos_listbox is not None: 
         for item in processos_listbox.get_children():
             processos_listbox.delete(item)
@@ -142,3 +179,35 @@ def atualizar_interface(cpu, memoria, processos):
         else:
             # Se não houver dados de processos, insere uma linha indicando
             processos_listbox.insert("", "end", values=("Sem dados", "", "", "", "", "", "", "", "", "", ""))
+    
+    
+
+
+
+def updateDirectoryContentView(content):
+
+    global content_listbox
+    if content_listbox is None:
+        print("Erro: content_listbox não foi inicializado.")
+        return
+    for item in content_listbox.get_children():
+        content_listbox.delete(item)
+
+    if content:
+        for info in content:
+
+            nome = info.get("Nome", "Desconhecido")
+            Caminho = info.get("Caminho", "root")
+            Permissoes = info.get("Permissões", "N/A")
+            Data_Criacao = info.get("Data de Criação", "N/A")
+            Data_Modificacao = info.get("Data de Modificação", "N/A")
+            Tipo = info.get("Tipo", "N/A")
+            Tamanho = info.get("Tamanho (Bytes)", "0")
+   
+            content_listbox.insert("", "end", values=(
+            nome, Caminho, Permissoes, Data_Criacao, Data_Modificacao, Tipo, Tamanho
+            ))
+    else:
+        # Se não houver dados, insere uma linha indicando
+        content_listbox.insert("", "end", values=("Sem dados", "", "", "", "", ""))
+        
