@@ -1,12 +1,13 @@
 import tkinter as tk
 from tkinter import ttk
-from customtkinter import CTkLabel, CTkTextbox, CTkFrame
-#versao thayssa
+#from customtkinter import CTkLabel, CTkTextbox, CTkFrame
+
 # --- Widgets globais ----------------------------------------------------------
 uso_cpu_label = None
 ociosidade_label = None
 memoria_label = None
-processos_listbox = None  # Treeview da janela de processos
+processos_listbox: ttk.Treeview | None = None
+recursos_listbox: ttk.Treeview | None = None
 content_listbox = None    # Treeview da janela de diretório
 
 # -----------------------------------------------------------------------------
@@ -70,42 +71,124 @@ def diretoryContentView(root, directoryData, get_directory_data_callback):
     # Chama a função que popula a Treeview
     updateDirectoryContentView(directoryData)
 
-# -----------------------------------------------------------------------------
-# View: Processos
-# -----------------------------------------------------------------------------
+# =============================================================================
+# 2) PROCESSOS – TREEVIEWS DE PROCESSOS E RECURSOS
+# =============================================================================
 
-def processView(root, cpu, memoria, processos):
-    """Abre uma Toplevel com a lista de processos."""
-    global processos_listbox
-
-    processos_window = tk.Toplevel(root)
-    processos_window.title("Processos em Execução")
-    processos_window.geometry("800x500")
-
-    # ❶ Callback para soltar o ponteiro global quando a janela for fechada
-    def _on_close():
-        global processos_listbox
-        processos_listbox = None
-        processos_window.destroy()
-
-    processos_window.protocol("WM_DELETE_WINDOW", _on_close)
-
-    frame_proc = tk.LabelFrame(processos_window, text="Processos", padx=10, pady=10)
-    frame_proc.pack(fill="both", expand=True, padx=10, pady=5)
-
-    colunas = (
-        "pid", "usuario", "nome", "cpu", "cpu_percent", "threads",
-        "total", "heap", "stack", "codigo", "paginas"
+def _preparar_recursos_treeview(parent):
+    """Cria Treeview para detalhar recursos abertos de um processo, agora com coluna PID."""
+    cols = (
+        "pid", "fd", "tipo", "caminho", "inode", "modo", "tamanho",
+        "protocolo", "local_address", "remote_address", "state"
     )
-    processos_listbox = ttk.Treeview(frame_proc, columns=colunas, show="headings")
+    tv = ttk.Treeview(parent, columns=cols, show="headings")
+    headers = {
+        "pid": "PID", "fd": "FD", "tipo": "Tipo", "caminho": "Caminho",
+        "inode": "Inode", "modo": "Modo", "tamanho": "Tamanho",
+        "protocolo": "Protocolo", "local_address": "Local", "remote_address": "Remoto", "state": "Estado"
+    }
+    widths = {
+        "pid": 60, "fd": 40, "tipo": 120, "caminho": 300,
+        "inode": 80, "modo": 80, "tamanho": 80,
+        "protocolo": 80, "local_address": 140, "remote_address": 140, "state": 100
+    }
+    for c in cols:
+        tv.heading(c, text=headers[c])
+        tv.column(c, anchor="w", width=widths[c], stretch=True)
+    vsb = ttk.Scrollbar(parent, orient="vertical", command=tv.yview)
+    tv.configure(yscrollcommand=vsb.set)
+    vsb.pack(side="right", fill="y")
+    return tv
+
+
+def _popular_recursos(pid, procs_dict):
+    """Preenche recursos_listbox incluindo a coluna PID."""
+    global recursos_listbox
+    if recursos_listbox is None or not recursos_listbox.winfo_exists():
+        return
+    # valida PID
+    if not pid or not str(pid).isdigit() or str(pid) not in procs_dict:
+        return
+    recursos_listbox.delete(*recursos_listbox.get_children())
+    rec = procs_dict[str(pid)]["recursos_abertos"]
+    todas = []
+    for cat in ("arquivos_regulares", "sockets", "pipes", "dispositivos",
+                "semaphores_posix", "links_quebrados_ou_inacessiveis", "outros"):
+        todas.extend(rec.get(cat, []))
+    try:
+        todas.sort(key=lambda x: int(x.get("fd", 0)))
+    except:
+        pass
+    for d in todas:
+        recursos_listbox.insert(
+            "", "end",
+            values=(
+                pid,
+                d.get("fd", "N/A"),
+                d.get("tipo", "N/A"),
+                d.get("caminho", "N/A"),
+                d.get("inode", "0"),
+                d.get("modo", "0"),
+                d.get("tamanho", "0"),
+                d.get("protocolo", "N/A"),
+                d.get("local_address", "N/A"),
+                d.get("remote_address", "N/A"),
+                d.get("state", "N/A")
+            )
+        )
+
+
+def processView(root: tk.Tk, cpu: dict, mem: dict, procs: dict):
+    """Janela que mostra lista de processos + recursos do selecionado."""
+    global processos_listbox, recursos_listbox
+
+    win = tk.Toplevel(root)
+    win.title("Processos em Execução")
+    win.geometry("1200x600")
+    win.grab_set()
+
+    def _on_close():
+        global processos_listbox, recursos_listbox
+        processos_listbox = None
+        recursos_listbox = None
+        win.destroy()
+
+    win.protocol("WM_DELETE_WINDOW", _on_close)
+
+    paned = ttk.Panedwindow(win, orient="vertical")
+    paned.pack(fill="both", expand=True)
+
+    # -------------- Processos (superior) ------------------------------------
+    frame_top = tk.LabelFrame(paned, text="Processos", padx=10, pady=10)
+    paned.add(frame_top, weight=3)
+
+    proc_cols = (
+        "pid", "usuario", "nome", "cpu", "cpu%", "threads", "total", "heap", "stack", "codigo", "paginas"
+    )
+    processos_listbox = ttk.Treeview(frame_top, columns=proc_cols, show="headings")
     processos_listbox.pack(fill="both", expand=True)
+    for c in proc_cols:
+        processos_listbox.heading(c, text=c.upper() if c != "pid" else "PID")
+        processos_listbox.column(c, anchor="w", width=100 if c != "nome" else 200, stretch=True)
+    # Scroll
+    vsb_p = ttk.Scrollbar(frame_top, orient="vertical", command=processos_listbox.yview)
+    processos_listbox.configure(yscrollcommand=vsb_p.set)
+    vsb_p.pack(side="right", fill="y")
 
-    for coluna in colunas:
-        processos_listbox.heading(coluna, text=coluna.upper() if coluna != "pid" else "PID")
-        processos_listbox.column(coluna, anchor="w", width=100, stretch=True)
+    # -------------- Recursos (inferior) -------------------------------------
+    frame_bot = tk.LabelFrame(paned, text="Recursos Abertos", padx=10, pady=10)
+    paned.add(frame_bot, weight=2)
+    recursos_listbox = _preparar_recursos_treeview(frame_bot)
+    recursos_listbox.pack(fill="both", expand=True)
 
-    # Preenche imediatamente com os dados atuais
-    atualizar_interface(cpu, memoria, processos)
+    def _on_select(event=None):
+        sel = processos_listbox.selection()
+        if sel:
+            _popular_recursos(processos_listbox.item(sel[0], "values")[0], procs)
+
+    processos_listbox.bind("<<TreeviewSelect>>", _on_select)
+
+    atualizar_interface(cpu, mem, procs)
 
 # -----------------------------------------------------------------------------
 # Dashboard principal
@@ -169,7 +252,7 @@ def dashboard_view(root, cpu, memoria, processos, get_directory_data_callback):
 
 def atualizar_interface(cpu, memoria, processos):
     """Atualiza labels & treeviews com os dados mais recentes."""
-    global uso_cpu_label, ociosidade_label, memoria_label, processos_listbox
+    global uso_cpu_label, ociosidade_label, memoria_label, processos_listbox, recursos_listbox
 
     # --- CPU -----------------------------------------------------------------
     if uso_cpu_label and ociosidade_label:
@@ -198,38 +281,46 @@ def atualizar_interface(cpu, memoria, processos):
         )
         memoria_label.config(text=texto_mem)
 
-    # --- Processos -----------------------------------------------------------
-    if processos_listbox is not None:
-        # ❷ Se a janela foi fechada, winfo_exists() devolve 0
-        if not processos_listbox.winfo_exists():
-            processos_listbox = None
-        else:
-            # Limpa linhas antigas
-            for item in processos_listbox.get_children():
-                processos_listbox.delete(item)
+   # -------- Processos (Treeview) ------ (Treeview) ------
+    if processos_listbox and processos_listbox.winfo_exists():
+        processos_listbox.delete(*processos_listbox.get_children())
 
-            if processos:
-                for pid, info in processos.items():
-                    processos_listbox.insert(
-                        "", "end",
-                        values=(
-                            pid,
-                            info.get("usuario", "root"),
-                            info.get("nome", "Desconhecido"),
-                            f"{info.get('tempo_total_segundos', 'N/A')}s",
-                            f"{info.get('uso_percentual_cpu', 0)}%",
-                            info.get("threads", 0),
-                            f"{info.get('mem_total_kb', 'N/A')}kB",
-                            f"{info.get('mem_heap_kb', 'N/A')}kB",
-                            f"{info.get('mem_stack_kb', 'N/A')}kB",
-                            f"{info.get('mem_codigo_kb', 'N/A')}kB",
-                            info.get("total_pagina", "N/A"),
-                        ),
-                    )
-            else:
+        if processos:
+            for pid, info in processos.items():
                 processos_listbox.insert(
-                    "", "end", values=("Sem dados", *("" for _ in range(10)))
+                    "", "end",
+                    values=(
+                        pid,
+                        info.get("usuario", "root"),
+                        info.get("nome", "-"),
+                        f"{info.get('tempo_total_segundos', 0)}s",
+                        f"{info.get('uso_percentual_cpu', 0)}%",
+                        info.get("threads", 0),
+                        f"{info.get('mem_total_kb', 0)}kB",
+                        f"{info.get('mem_heap_kb', 0)}kB",
+                        f"{info.get('mem_stack_kb', 0)}kB",
+                        f"{info.get('mem_codigo_kb', 0)}kB",
+                        info.get("total_pagina", "-"),
+                    ),
                 )
+        else:
+            processos_listbox.insert("", "end", values=("Sem dados", *("",) * 10))
+
+        # Seleciona primeiro processo automático se nada selecionado
+        if processos_listbox.get_children() and not processos_listbox.selection():
+            processos_listbox.selection_set(processos_listbox.get_children()[0])
+
+# No atualizar_interface(cpu, mem, procs), use:
+
+    # -------- Recursos (Treeview) --------
+    if recursos_listbox and recursos_listbox.winfo_exists():
+        sel = processos_listbox.selection()
+        if sel:
+            pid_sel = processos_listbox.item(sel[0], "values")[0]
+            if pid_sel.isdigit() and pid_sel in processos:
+                _popular_recursos(pid_sel, processos)
+    else:
+        recursos_listbox = None
 
 # -----------------------------------------------------------------------------
 # Atualização da TreeView de diretório
