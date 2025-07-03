@@ -1,12 +1,66 @@
 import tkinter as tk
 from tkinter import ttk
 
+from systemModel import getFileSystem
+
 uso_cpu_label = None
 ociosidade_label = None
 memoria_label = None
 processos_listbox: ttk.Treeview | None = None
 recursos_listbox: ttk.Treeview | None = None
 content_listbox = None    
+
+def fileSystemView(root):
+    win = tk.Toplevel(root)
+    win.title("Uso de Disco (Partições)")
+    win.geometry("900x400")
+
+    frame = tk.LabelFrame(win, text="Partições e Espaço em Disco", padx=10, pady=10)
+    frame.pack(fill="both", expand=True, padx=10, pady=5)
+
+    columns = [
+        "Dispositivo", "Diretório", "Opções de Montagem",
+        "Tamanho Total (Gb)", "Espaço Usado (Mb)",
+        "Espaço Livre (Gb)", "Disponível (Gb)", "Uso (%)"
+    ]
+    tree = ttk.Treeview(frame, columns=columns, show="headings")
+    tree.pack(fill="both", expand=True)
+
+    for col in columns:
+        tree.heading(col, text=col)
+        tree.column(col, width=120, anchor="w")
+
+    partitions = getFileSystem()
+
+    if partitions:
+        current_row = {}
+        for item in partitions:
+            # Junta as duas partes (dispositivo + uso)
+            if "Dispositivo de Bloco" in item:
+                current_row = {
+                    "Dispositivo": item.get("Dispositivo de Bloco", "-"),
+                    "Diretório": item.get("Diretorio", "-"),
+                    "Opções de Montagem": item.get("Opçoes de Montagem", "-")
+                }
+            elif "Tamanho Total (Gb)" in item:
+                current_row.update({
+                    "Tamanho Total (Gb)": item.get("Tamanho Total (Gb)", "-"),
+                    "Espaço Usado (Mb)": item.get("Espaço Usado (Mb)", "-"),
+                    "Espaço Livre (Gb)": item.get("Espaço Livre (Gb)", "-"),
+                    "Disponível (Gb)": item.get("Espaço Disponível (Gb)", "-"),
+                    "Uso (%)": item.get("Percentual de Uso (%)", "-")
+                })
+                tree.insert("", "end", values=(
+                    current_row.get("Dispositivo", "-"),
+                    current_row.get("Diretório", "-"),
+                    current_row.get("Opções de Montagem", "-"),
+                    current_row.get("Tamanho Total (Gb)", "-"),
+                    current_row.get("Espaço Usado (Mb)", "-"),
+                    current_row.get("Espaço Livre (Gb)", "-"),
+                    current_row.get("Disponível (Gb)", "-"),
+                    current_row.get("Uso (%)", "-"),
+                ))
+
 
 # MARK: View de Diretõrios a partir da root
 def diretoryContentView(root, directoryData, get_directory_data_callback):
@@ -60,6 +114,13 @@ def diretoryContentView(root, directoryData, get_directory_data_callback):
                 print(f"Erro ao voltar para: {previous_path}")
         else:
             print("Nenhum diretório anterior no histórico.")
+
+    diskButton = tk.Button(
+    button_frame, text="Disco",
+    command=lambda: fileSystemView(root),
+    bg="#e6e6fa", fg="#000000"
+    )
+    diskButton.pack(side="left", padx=5, pady=5)
 
     refreshButton = tk.Button(
         button_frame, text="Atualizar",
@@ -396,3 +457,29 @@ def updateDirectoryContentView(content):
         content_listbox.insert(
             "", "end", values=("Sem dados", *("" for _ in range(6)))
         )
+        # --- [EXTRA] Adiciona informações do getFileSystem como linhas extras ---
+    try:
+        partitions = getFileSystem()
+
+        for idx in range(0, len(partitions), 2):
+            parte1 = partitions[idx]
+            parte2 = partitions[idx + 1] if idx + 1 < len(partitions) else {}
+
+            content_listbox.insert(
+                "", "end",
+                values=(
+                    f"[DISCO] {parte1.get('Dispositivo de Bloco', '-')}",
+                    parte1.get("Diretorio", "-"),
+                    parte1.get("Opçoes de Montagem", "-"),
+                    "-", "-",  # Criação, Modificação
+                    "Partição",
+                    f"{parte2.get('Percentual de Uso (%)', '-')}",
+                ),
+                tags=("disco",)
+            )
+
+        content_listbox.tag_configure("disco", background="#f0f8ff", foreground="#00008b")
+
+    except Exception as e:
+        print("Erro ao adicionar partições na content_listbox:", e)
+
