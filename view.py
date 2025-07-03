@@ -1,29 +1,24 @@
 import tkinter as tk
 from tkinter import ttk
-#from customtkinter import CTkLabel, CTkTextbox, CTkFrame
 
-# --- Widgets globais ----------------------------------------------------------
 uso_cpu_label = None
 ociosidade_label = None
 memoria_label = None
 processos_listbox: ttk.Treeview | None = None
 recursos_listbox: ttk.Treeview | None = None
-content_listbox = None    # Treeview da janela de diretório
+content_listbox = None    
 
-# -----------------------------------------------------------------------------
-# View: Conteúdo de diretório
-# -----------------------------------------------------------------------------
-
+# MARK: View de Diretõrios a partir da root
 def diretoryContentView(root, directoryData, get_directory_data_callback):
-    """Abre uma Toplevel com o conteúdo de um diretório."""
     global content_listbox
 
     directoryWindow = tk.Toplevel(root)
     directoryWindow.title("Conteúdo do Diretório")
     directoryWindow.geometry("800x500")    
-     
 
-    # Callback para soltar o ponteiro global quando a janela for fechada
+    current_directory_path = ["/"]      
+    history_stack = []                   
+
     def _on_close():
         global content_listbox
         content_listbox = None
@@ -33,7 +28,7 @@ def diretoryContentView(root, directoryData, get_directory_data_callback):
 
     frame_content = tk.LabelFrame(directoryWindow, text="Conteúdo do Diretório", padx=10, pady=10)
     frame_content.pack(fill="both", expand=True, padx=10, pady=5)
-    
+
     columns = (
         "Nome", "Caminho", "Permissões", "Data de Criação",
         "Data de Modificação", "Tipo", "Tamanho Bytes"
@@ -44,14 +39,42 @@ def diretoryContentView(root, directoryData, get_directory_data_callback):
     for col in columns:
         content_listbox.heading(col, text=col)
 
-    backButton = tk.Button(
-        frame_content, text="Voltar",
-        command=directoryWindow.destroy,
-        bg="#d0d0d0", fg="#000000"
-    )
-    backButton.pack(side="top", anchor="ne", padx=10, pady=10)
+    button_frame = tk.Frame(frame_content)
+    button_frame.pack(anchor="ne", pady=5)
 
-    #pra cada linha, ao clicar, abre os subdiretórios
+    def on_refresh():
+        refreshed_data = get_directory_data_callback(current_directory_path[0])
+        if refreshed_data:
+            updateDirectoryContentView(refreshed_data)
+        else:
+            print(f"Erro ao atualizar o diretório: {current_directory_path[0]}")
+
+    def on_back_to_previous():
+        if history_stack:
+            previous_path = history_stack.pop()
+            current_directory_path[0] = previous_path
+            prev_data = get_directory_data_callback(previous_path)
+            if prev_data:
+                updateDirectoryContentView(prev_data)
+            else:
+                print(f"Erro ao voltar para: {previous_path}")
+        else:
+            print("Nenhum diretório anterior no histórico.")
+
+    refreshButton = tk.Button(
+        button_frame, text="Atualizar",
+        command=on_refresh,
+        bg="#b0e0e6", fg="#000000"
+    )
+    refreshButton.pack(side="left", padx=10)
+
+    backPrevButton = tk.Button(
+        button_frame, text="Voltar para o anterior",
+        command=on_back_to_previous,
+        bg="#f0e68c", fg="#000000"
+    )
+    backPrevButton.pack(side="left", padx=10)
+
     def on_item_click(event):
         selected_item = content_listbox.selection()
         if selected_item:
@@ -60,20 +83,18 @@ def diretoryContentView(root, directoryData, get_directory_data_callback):
             if item_data[5] == "Diretório": 
                 new_directory_data = get_directory_data_callback(item_path)
                 if new_directory_data:
+                    history_stack.append(current_directory_path[0])
+                    current_directory_path[0] = item_path 
                     updateDirectoryContentView(new_directory_data)
                 else:
                     print(f"Erro ao acessar o diretório: {item_path}")
                     updateDirectoryContentView(None) 
             else:
-
                 print(f"Item selecionado não é um diretório: {item_data[0]}")
-    content_listbox.bind("<Double-1>", on_item_click)
-    # Chama a função que popula a Treeview
-    updateDirectoryContentView(directoryData)
 
-# =============================================================================
-# 2) PROCESSOS – TREEVIEWS DE PROCESSOS E RECURSOS
-# =============================================================================
+    content_listbox.bind("<Double-1>", on_item_click)
+
+    updateDirectoryContentView(directoryData)
 
 def _preparar_recursos_treeview(parent):
     """Cria Treeview para detalhar recursos abertos de um processo, agora com coluna PID."""
@@ -100,7 +121,7 @@ def _preparar_recursos_treeview(parent):
     vsb.pack(side="right", fill="y")
     return tv
 
-
+# MARK: Popular recursos abertos de TODOS os processos
 def _popular_recursos(all_procs_data: dict): 
     """Preenche recursos_listbox com recursos combinados de TODOS os processos."""
     global recursos_listbox
@@ -222,12 +243,9 @@ def processView(root: tk.Tk, cpu: dict, mem: dict, procs: dict):
 
     atualizar_interface(cpu, mem, procs)
 
-# -----------------------------------------------------------------------------
-# Dashboard principal
-# -----------------------------------------------------------------------------
-
+# MARK: View principal do dashboard
 def dashboard_view(root, cpu, memoria, processos, get_directory_data_callback):
-    """Cria a interface principal do dashboard."""
+    
     # Limpa widgets antigos
     for widget in root.winfo_children():
         widget.destroy()
@@ -275,17 +293,12 @@ def dashboard_view(root, cpu, memoria, processos, get_directory_data_callback):
     # Garante que o ponteiro global aponta para None até a janela de processos abrir
     processos_listbox = None
 
-    # Rende r os valores iniciais
     atualizar_interface(cpu, memoria, processos)
 
-# -----------------------------------------------------------------------------
-# Atualização da interface (executada pelo controller a cada segundo)
-# -----------------------------------------------------------------------------
-
+# MARK: Atualização da interface com dados mais recentes
 def atualizar_interface(cpu, memoria, processos):
     """Atualiza labels & treeviews com os dados mais recentes."""
     global uso_cpu_label, ociosidade_label, memoria_label, processos_listbox, recursos_listbox
-
 
     # --- CPU -----------------------------------------------------------------
     if uso_cpu_label and ociosidade_label:
@@ -347,10 +360,7 @@ def atualizar_interface(cpu, memoria, processos):
     else:
         recursos_listbox = None
 
-# -----------------------------------------------------------------------------
-# Atualização da TreeView de diretório
-# -----------------------------------------------------------------------------
-
+# MARK: Atualiza a view de conteúdo do diretório
 def updateDirectoryContentView(content):
     global content_listbox
 

@@ -9,6 +9,11 @@ run:
 	@echo "Iniciando o dashboard..."
 	$(PYTHON) $(APP)
 
+# Executa como root
+run-root:
+	@echo "Iniciando o dashboard como root..."
+	sudo $(PYTHON) $(APP)
+	
 # Instalar dependências (se houver requirements.txt)
 install:
 	@echo "Instalando dependências..."

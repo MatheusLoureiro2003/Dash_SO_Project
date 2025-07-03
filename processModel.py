@@ -11,7 +11,7 @@ import struct
 libc = ctypes.CDLL(ctypes.util.find_library('c'), use_errno=True) #
 
 # Variável global para armazenar informações globais de sockets de rede
-_global_network_sockets_info = {} # NOVO: Cache global para informações de sockets
+_global_network_sockets_info = {} # Cache global para informações de sockets
 
 
 # Estado interno para armazenar valores anteriores
@@ -372,7 +372,6 @@ def _ler_info_sockets_rede_global():
 
                         local_ip = ''
                         if len(local_addr_hex) == 8: # IPv4
-                            # CORREÇÃO AQUI: usar struct.pack
                             local_ip = socket.inet_ntoa(struct.pack("<L", int(local_addr_hex, 16))) #
                         elif len(local_addr_hex) == 32: # IPv6
                             local_ip = socket.inet_ntop(socket.AF_INET6, bytes.fromhex(local_addr_hex))
@@ -383,7 +382,7 @@ def _ler_info_sockets_rede_global():
 
                         remote_ip = ''
                         if len(rem_addr_hex) == 8: # IPv4
-                            # CORREÇÃO AQUI: usar struct.pack
+                
                             remote_ip = socket.inet_ntoa(struct.pack("<L", int(rem_addr_hex, 16))) #
                         elif len(rem_addr_hex) == 32: # IPv6
                             remote_ip = socket.inet_ntop(socket.AF_INET6, bytes.fromhex(rem_addr_hex))
