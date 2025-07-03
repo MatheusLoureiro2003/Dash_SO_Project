@@ -101,42 +101,80 @@ def _preparar_recursos_treeview(parent):
     return tv
 
 
-def _popular_recursos(pid, procs_dict):
-    """Preenche recursos_listbox incluindo a coluna PID."""
+def _popular_recursos(all_procs_data: dict): 
+    """Preenche recursos_listbox com recursos combinados de TODOS os processos."""
     global recursos_listbox
     if recursos_listbox is None or not recursos_listbox.winfo_exists():
         return
-    # valida PID
-    if not pid or not str(pid).isdigit() or str(pid) not in procs_dict:
-        return
+
     recursos_listbox.delete(*recursos_listbox.get_children())
-    rec = procs_dict[str(pid)]["recursos_abertos"]
-    todas = []
-    for cat in ("arquivos_regulares", "sockets", "pipes", "dispositivos",
-                "semaphores_posix", "links_quebrados_ou_inacessiveis", "outros"):
-        todas.extend(rec.get(cat, []))
+
+    all_combined_resources = []
+    for pid_str, proc_info in all_procs_data.items(): # Itera sobre TODOS os processos
+        recursos_do_proc = proc_info.get("recursos_abertos", {})
+        for categoria in (
+            "arquivos_regulares", "sockets", "pipes", "dispositivos",
+            "semaphores_posix", "links_quebrados_ou_inacessiveis", "outros"
+        ):
+            items_da_categoria = recursos_do_proc.get(categoria, [])
+            for item in items_da_categoria:
+                item_com_pid = item.copy()
+                item_com_pid['pid'] = int(pid_str) # Adiciona o PID do processo ao recurso
+                all_combined_resources.append(item_com_pid)
+    
+    # Opcional: Ordenar a lista global (ex: por PID, depois FD)
     try:
-        todas.sort(key=lambda x: int(x.get("fd", 0)))
-    except:
-        pass
-    for d in todas:
+        all_combined_resources.sort(key=lambda x: (x.get('pid', 0), int(x.get("fd", "0")))) # '0' para fd para evitar erro se não houver
+    except Exception:
+        pass # Ignora erros de ordenação
+
+    if not all_combined_resources:
+        recursos_listbox.insert("", "end", values=("Sem recursos abertos no sistema.", *("",) * (len(recursos_listbox['columns']) - 1)))
+        return
+
+    for d in all_combined_resources:
+        # Prepara valores para as colunas
+        pid = d.get("pid", "—") # Pega o PID que foi adicionado
+        fd = d.get("fd", "—")
+        tipo = d.get("tipo", "—")
+        caminho = d.get("caminho", "—")
+        inode = d.get("inode", "—")
+        modo = d.get("modo", "—")
+        tamanho = d.get("tamanho", "—")
+        
+        # Ajuste para sockets e semáforos como na sua última versão (sem as colunas 0/1)
+        protocolo_display = d.get("protocolo", "N/A")
+        local_address_display = d.get("local_address", "N/A")
+        remote_address_display = d.get("remote_address", "N/A")
+        state_display = d.get("state", "N/A")
+
+        if "Socket" in tipo and "Unix" in tipo:
+            protocolo_display = "UNIX"
+            local_address_display = d.get("caminho", "N/A")
+            remote_address_display = "N/A"
+            state_display = "N/A"
+        elif "Semaphore" in tipo:
+            protocolo_display = "N/A"
+            local_address_display = "N/A"
+            remote_address_display = "N/A"
+            state_display = "N/A"
+
         recursos_listbox.insert(
             "", "end",
             values=(
-                pid,
-                d.get("fd", "N/A"),
-                d.get("tipo", "N/A"),
-                d.get("caminho", "N/A"),
-                d.get("inode", "0"),
-                d.get("modo", "0"),
-                d.get("tamanho", "0"),
-                d.get("protocolo", "N/A"),
-                d.get("local_address", "N/A"),
-                d.get("remote_address", "N/A"),
-                d.get("state", "N/A")
+                pid, # <--- AGORA USA O PID DO RECURSO COMBINADO
+                fd,
+                tipo,
+                caminho,
+                inode,
+                modo,
+                tamanho,
+                protocolo_display,
+                local_address_display,
+                remote_address_display,
+                state_display
             )
         )
-
 
 def processView(root: tk.Tk, cpu: dict, mem: dict, procs: dict):
     """Janela que mostra lista de processos + recursos do selecionado."""
@@ -176,17 +214,11 @@ def processView(root: tk.Tk, cpu: dict, mem: dict, procs: dict):
     vsb_p.pack(side="right", fill="y")
 
     # -------------- Recursos (inferior) -------------------------------------
-    frame_bot = tk.LabelFrame(paned, text="Recursos Abertos", padx=10, pady=10)
+    frame_bot = tk.LabelFrame(paned, text="Recursos Abertos", padx=10, pady=10) 
     paned.add(frame_bot, weight=2)
     recursos_listbox = _preparar_recursos_treeview(frame_bot)
     recursos_listbox.pack(fill="both", expand=True)
-
-    def _on_select(event=None):
-        sel = processos_listbox.selection()
-        if sel:
-            _popular_recursos(processos_listbox.item(sel[0], "values")[0], procs)
-
-    processos_listbox.bind("<<TreeviewSelect>>", _on_select)
+    _popular_recursos(procs) 
 
     atualizar_interface(cpu, mem, procs)
 
@@ -254,6 +286,7 @@ def atualizar_interface(cpu, memoria, processos):
     """Atualiza labels & treeviews com os dados mais recentes."""
     global uso_cpu_label, ociosidade_label, memoria_label, processos_listbox, recursos_listbox
 
+
     # --- CPU -----------------------------------------------------------------
     if uso_cpu_label and ociosidade_label:
         if cpu:
@@ -281,10 +314,9 @@ def atualizar_interface(cpu, memoria, processos):
         )
         memoria_label.config(text=texto_mem)
 
-   # -------- Processos (Treeview) ------ (Treeview) ------
-    if processos_listbox and processos_listbox.winfo_exists():
+   # -------- Processos (Treeview Superior) ------
+    if processos_listbox is not None and processos_listbox.winfo_exists():
         processos_listbox.delete(*processos_listbox.get_children())
-
         if processos:
             for pid, info in processos.items():
                 processos_listbox.insert(
@@ -302,23 +334,16 @@ def atualizar_interface(cpu, memoria, processos):
                         f"{info.get('mem_codigo_kb', 0)}kB",
                         info.get("total_pagina", "-"),
                     ),
+                    iid=str(pid)
                 )
         else:
-            processos_listbox.insert("", "end", values=("Sem dados", *("",) * 10))
-
-        # Seleciona primeiro processo automático se nada selecionado
+            processos_listbox.insert("", "end", values=("Sem dados", *("" for _ in range(10))))
         if processos_listbox.get_children() and not processos_listbox.selection():
             processos_listbox.selection_set(processos_listbox.get_children()[0])
-
-# No atualizar_interface(cpu, mem, procs), use:
-
-    # -------- Recursos (Treeview) --------
-    if recursos_listbox and recursos_listbox.winfo_exists():
-        sel = processos_listbox.selection()
-        if sel:
-            pid_sel = processos_listbox.item(sel[0], "values")[0]
-            if pid_sel.isdigit() and pid_sel in processos:
-                _popular_recursos(pid_sel, processos)
+            
+    # -------- Recursos (Treeview Inferior) --------
+    if recursos_listbox is not None and recursos_listbox.winfo_exists():
+        _popular_recursos(processos) 
     else:
         recursos_listbox = None
 
