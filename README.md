@@ -8,7 +8,8 @@ Este projeto é um dashboard simples para monitoramento do sistema operacional L
 
 - Monitoramento em tempo real do uso da CPU (uso e ociosidade)
 - Exibição de informações globais de memória (RAM e Swap)
-- Listagem detalhada dos processos ativos, incluindo uso de memória e CPU por processo
+- Listagem detalhada dos processos ativos, incluindo uso de memória, navegação na árvore de diretórios, informações dos recursos abertos e uso da CPU por processo, entre outras informações.
+  
 - Atualização automática dos dados a cada 5 segundos
 
 ---
