@@ -1,11 +1,6 @@
 import tkinter as tk
 from tkinter import ttk
-
-# --- Objetos de gráfico (reservado para uso futuro) ---------------------------
-cpu_fig, cpu_ax = None, None
-mem_fig, mem_ax = None, None
-cpu_canvas = None
-mem_canvas = None
+from customtkinter import CTkLabel, CTkTextbox, CTkFrame
 
 # --- Widgets globais ----------------------------------------------------------
 uso_cpu_label = None
@@ -18,15 +13,16 @@ content_listbox = None    # Treeview da janela de diretório
 # View: Conteúdo de diretório
 # -----------------------------------------------------------------------------
 
-def diretoryContentView(root, directoryData):
+def diretoryContentView(root, directoryData, get_directory_data_callback):
     """Abre uma Toplevel com o conteúdo de um diretório."""
     global content_listbox
 
     directoryWindow = tk.Toplevel(root)
     directoryWindow.title("Conteúdo do Diretório")
-    directoryWindow.geometry("800x500")
+    directoryWindow.geometry("800x500")    
+     
 
-    # ❶ Callback para soltar o ponteiro global quando a janela for fechada
+    # Callback para soltar o ponteiro global quando a janela for fechada
     def _on_close():
         global content_listbox
         content_listbox = None
@@ -36,10 +32,10 @@ def diretoryContentView(root, directoryData):
 
     frame_content = tk.LabelFrame(directoryWindow, text="Conteúdo do Diretório", padx=10, pady=10)
     frame_content.pack(fill="both", expand=True, padx=10, pady=5)
-
+    
     columns = (
         "Nome", "Caminho", "Permissões", "Data de Criação",
-        "Data de Modificação", "Tipo", "Tamanho"
+        "Data de Modificação", "Tipo", "Tamanho Bytes"
     )
     content_listbox = ttk.Treeview(frame_content, columns=columns, show="headings")
     content_listbox.pack(fill="both", expand=True)
@@ -47,6 +43,30 @@ def diretoryContentView(root, directoryData):
     for col in columns:
         content_listbox.heading(col, text=col)
 
+    backButton = tk.Button(
+        frame_content, text="Voltar",
+        command=directoryWindow.destroy,
+        bg="#d0d0d0", fg="#000000"
+    )
+    backButton.pack(side="top", anchor="ne", padx=10, pady=10)
+
+    #pra cada linha, ao clicar, abre os subdiretórios
+    def on_item_click(event):
+        selected_item = content_listbox.selection()
+        if selected_item:
+            item_data = content_listbox.item(selected_item, "values")
+            item_path = item_data[1]
+            if item_data[5] == "Diretório": 
+                new_directory_data = get_directory_data_callback(item_path)
+                if new_directory_data:
+                    updateDirectoryContentView(new_directory_data)
+                else:
+                    print(f"Erro ao acessar o diretório: {item_path}")
+                    updateDirectoryContentView(None) 
+            else:
+
+                print(f"Item selecionado não é um diretório: {item_data[0]}")
+    content_listbox.bind("<Double-1>", on_item_click)
     # Chama a função que popula a Treeview
     updateDirectoryContentView(directoryData)
 
@@ -91,7 +111,7 @@ def processView(root, cpu, memoria, processos):
 # Dashboard principal
 # -----------------------------------------------------------------------------
 
-def dashboard_view(root, cpu, memoria, processos):
+def dashboard_view(root, cpu, memoria, processos, get_directory_data_callback):
     """Cria a interface principal do dashboard."""
     # Limpa widgets antigos
     for widget in root.winfo_children():
@@ -100,7 +120,7 @@ def dashboard_view(root, cpu, memoria, processos):
     global uso_cpu_label, ociosidade_label, memoria_label, processos_listbox
 
     root.title("Dashboard do Sistema Operacional")
-    root.geometry("900x600")
+    root.geometry("900x400")
 
     # --- Frame de opções ------------------------------------------------------
     frame_opcoes = tk.LabelFrame(root, text="Opções", padx=10, pady=10)
@@ -114,7 +134,7 @@ def dashboard_view(root, cpu, memoria, processos):
 
     directoryButton = tk.Button(
         frame_opcoes, text="Diretório",
-        command=lambda: diretoryContentView(root, "/")
+        command=lambda: diretoryContentView(root, get_directory_data_callback("/"), get_directory_data_callback)  # Chama a função de callback para obter o conteúdo do diretório
     )
     directoryButton.pack(side="left", padx=5, pady=5)
 
@@ -136,11 +156,7 @@ def dashboard_view(root, cpu, memoria, processos):
         frame_mem, text="Informações de Memória", anchor="w", justify="left"
     )
     memoria_label.pack(anchor="w")
-
-    # --- Frame Gráficos ------------------------------------------------------
-    frame_graficos = tk.LabelFrame(root, text="Gráficos de Uso Global", padx=10, pady=10)
-    frame_graficos.pack(fill="both", expand=True, padx=10, pady=10)
-
+    
     # Garante que o ponteiro global aponta para None até a janela de processos abrir
     processos_listbox = None
 
@@ -231,8 +247,9 @@ def updateDirectoryContentView(content):
     for item in content_listbox.get_children():
         content_listbox.delete(item)
 
-    if content:
+    if content and isinstance(content, list):
         for info in content:
+          if isinstance(info, dict):
             content_listbox.insert(
                 "", "end",
                 values=(
@@ -244,6 +261,10 @@ def updateDirectoryContentView(content):
                     info.get("Tipo", "N/A"),
                     info.get("Tamanho (Bytes)", "0"),
                 ),
+            )
+        else:
+            content_listbox.insert(
+                "", "end", values=("Sem dados", *("" for _ in range(6)))
             )
     else:
         content_listbox.insert(

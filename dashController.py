@@ -7,7 +7,7 @@ from memoryModel import lerUsoMemoria
 from processModel import (dicionarioStatusProcesso, dicionarioStatCPUProcesso, 
                           atualizar_cpu_total, dicionarioPaginaProcesso,
                           contar_processos_e_threads) 
-
+from systemModel import listDirectoryContent
 
 # Locks para controle de concorrência, que sincronizam o acesso relacionado à leitura/atualização dos dados
 
@@ -22,9 +22,13 @@ dados_cpu = {}
 dados_mem = {}   
 dados_proc = {}
 
+def atualizar_diretorio(diretorio_caminho="/"):
+    global dados_diretorio
 
+    conteudo = listDirectoryContent(diretorio_caminho)
+    return conteudo
+  
 # MARK: Funções que atualizam os dados da CPU em paralelo
-
 def atualizar_cpu():
     global dados_cpu 
 
@@ -117,7 +121,7 @@ def loop_exibicao():
 
     root = tk.Tk()                       # cria a janela principal do Tkinter
 
-    dashboard_view(root, dados_cpu, dados_mem, dados_proc)  # inicializa a interface (widgets etc.)
+    dashboard_view(root, dados_cpu, dados_mem, dados_proc, atualizar_diretorio)  # inicializa a interface (widgets etc.)
     root.after(1000, atualizar)          # agenda a primeira atualização da interface para daqui 1 segundo
     root.mainloop()                     # inicia o loop principal da interface gráfica Tkinter
 
