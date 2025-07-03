@@ -1,7 +1,7 @@
 import tkinter as tk
 from tkinter import ttk
 from customtkinter import CTkLabel, CTkTextbox, CTkFrame
-
+#versao thayssa
 # --- Widgets globais ----------------------------------------------------------
 uso_cpu_label = None
 ociosidade_label = None
